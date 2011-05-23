@@ -6,6 +6,7 @@ EXTRA_DIST = \
   ball_chute.xml \
   ball_orbit.xml \
   blank.xml \
+  ah1s_flight_test.xml \
   c1721.xml \
   c1722.xml \
   c1723.xml \
@@ -22,4 +23,5 @@ EXTRA_DIST = \
   x151.xml \
   x152.xml \
   f16_runway_test.xml \
-  c172_elevation_test.xml
+  c172_elevation_test.xml \
+  c172_runway_at_rest_cg_shift.xml

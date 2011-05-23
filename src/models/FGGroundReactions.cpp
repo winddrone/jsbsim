@@ -46,7 +46,7 @@ using namespace std;
 
 namespace JSBSim {
 
-static const char *IdSrc = "$Id: FGGroundReactions.cpp,v 1.30 2010/09/07 00:40:03 jberndt Exp $";
+static const char *IdSrc = "$Id: FGGroundReactions.cpp,v 1.32 2011/05/20 03:18:36 jberndt Exp $";
 static const char *IdHdr = ID_GROUNDREACTIONS;
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -116,17 +116,15 @@ FGGroundReactions::~FGGroundReactions(void)
 
 bool FGGroundReactions::InitModel(void)
 {
-  if (!FGModel::InitModel()) return false;
-
   return true;
 }
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-bool FGGroundReactions::Run(void)
+bool FGGroundReactions::Run(bool Holding)
 {
-  if (FGModel::Run()) return true;
-  if (FDMExec->Holding()) return false;
+  if (FGModel::Run(Holding)) return true;
+  if (Holding) return false;
 
   RunPreFunctions();
 
@@ -187,7 +185,7 @@ bool FGGroundReactions::Load(Element* el)
   Element* contact_element = el->FindElement("contact");
   while (contact_element) {
     lGear.push_back(new FGLGear(contact_element, FDMExec, num++));
-    FCS->AddGear(); // make the FCS aware of the landing gear
+    FDMExec->GetFCS()->AddGear(); // make the FCS aware of the landing gear
     contact_element = el->FindNextElement("contact");
   }
   
@@ -202,7 +200,7 @@ bool FGGroundReactions::Load(Element* el)
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-string FGGroundReactions::GetGroundReactionStrings(string delimeter)
+string FGGroundReactions::GetGroundReactionStrings(string delimeter) const
 {
   std::ostringstream buf;
 
@@ -237,7 +235,7 @@ string FGGroundReactions::GetGroundReactionStrings(string delimeter)
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-string FGGroundReactions::GetGroundReactionValues(string delimeter)
+string FGGroundReactions::GetGroundReactionValues(string delimeter) const
 {
   std::ostringstream buf;
 

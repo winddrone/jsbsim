@@ -40,7 +40,7 @@ INCLUDES
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%*/
 
 #include "FGFDMExec.h"
-//#include <initialization/FGTrimAnalysis.h>
+#include "input_output/FGXMLFileRead.h"
 
 #if !defined(__GNUC__) && !defined(sgi) && !defined(_MSC_VER)
 #  include <time>
@@ -63,12 +63,13 @@ INCLUDES
 #include <cstdlib>
 
 using namespace std;
+using JSBSim::FGXMLFileRead;
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 DEFINITIONS
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%*/
 
-static const char *IdSrc = "$Id: JSBSim.cpp,v 1.60 2010/08/11 11:49:44 jberndt Exp $";
+static const char *IdSrc = "$Id: JSBSim.cpp,v 1.66 2011/04/09 17:23:01 andgi Exp $";
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 GLOBAL DATA
@@ -97,6 +98,7 @@ FORWARD DECLARATIONS
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%*/
 
 bool options(int, char**);
+int real_main(int argc, char* argv[]);
 void PrintHelp(void);
 
 #if defined(__BORLANDC__) || defined(_MSC_VER) || defined(__MINGW32__)
@@ -133,6 +135,40 @@ void PrintHelp(void);
   }
 #endif
 
+/** This class is solely for the purpose of determining what type
+    of file is given on the command line */
+class XMLFile : public FGXMLFileRead {
+public:
+  bool IsScriptFile(std::string filename) {
+    bool result=false;
+    document = LoadXMLDocument(filename);
+    if (document->GetName() == "runscript") result = true;
+    ResetParser();
+    return result;
+  }
+  bool IsLogDirectiveFile(std::string filename) {
+    bool result=false;
+    document = LoadXMLDocument(filename);
+    if (document->GetName() == "output") result = true;
+    ResetParser();
+    return result;
+  }
+  bool IsAircraftFile(std::string filename) {
+    bool result=false;
+    document = LoadXMLDocument(filename);
+    if (document->GetName() == "fdm_config") result = true;
+    ResetParser();
+    return result;
+  }
+  bool IsInitFile(std::string filename) {
+    bool result=false;
+    document = LoadXMLDocument(filename);
+    if (document->GetName() == "initialize") result = true;
+    ResetParser();
+    return result;
+  }
+};
+
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 CLASS DOCUMENTATION
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%*/
@@ -146,19 +182,19 @@ CLASS DOCUMENTATION
  * model (FDM) framework written in the C++ programming language.  It is
  * designed to support simulation modeling of any aerospace craft without the
  * need for specific compiled and linked program code, instead relying on a
- * relatively simple model specification written in a XML format. The format is
+ * versatile and powerful specification written in an XML format. The format is
  * formally known as JSBSim-ML (JSBSim Markup Language).
  *
  * JSBSim (www.jsbsim.org) was created initially for the open source FlightGear
- * flight simulator (www.flightgear.org), where it replaced LaRCSim (Langley
- * Research Center Simulation) as the default FDM.  JSBSim also maintains the
- * ability to run in a standalone, batch mode.  This is useful for running tests
- * or sets of tests automatically using the internal scripting capability.
+ * flight simulator (www.flightgear.org). JSBSim maintains the ability to run in
+ * as a standalone executable in soft real-time, or batch mode. This is useful
+ * for running tests or sets of tests automatically using the internal scripting
+ * capability.
  *
- * Differently from LaRCSim, JSBSim does not model specific aircraft in program
+ * JSBSim does not model specific aircraft in program
  * code. The aircraft itself is defined in a file written in an XML-based format
  * where the aircraft mass and geometric properties are specified.  Additional
- * statements define:
+ * statements define such characteristics as:
  *
  * - Landing gear location and properties.
  * - Pilot eyepoint
@@ -173,9 +209,10 @@ CLASS DOCUMENTATION
  * become immediately fluent in describing vehicles, and requiring only prior
  * basic theoretical aero knowledge.
  *
- * One of the more unique features of JSBSim is its method of modeling flight
- * control systems and an autopilot.  These are modeled by assembling strings
- * of components that represent filters, switches, summers, gains, sensors, etc.
+ * One of the more unique features of JSBSim is its method of modeling aircraft
+ * systems such as a flight control system, autopilot, electrical, etc. 
+ * These are modeled by assembling strings of components that represent filters,
+ * switches, summers, gains, sensors, and so on.
  *
  * Another unique feature is displayed in the use of "properties".  Properties
  * essentially expose chosen variables as nodes in a tree, in a directory-like
@@ -188,16 +225,9 @@ CLASS DOCUMENTATION
  *
  * The equations of motion are modeled essentially as they are presented in
  * aerospace textbooks for the benefit of student users, but quaternions are
- * used to track orientation, avoiding "gimbal lock". While JSBSim is
- * designed to model primarily atmospheric flight at lower speeds, coriolis and
- * centripetal accelerations are incorporated into the EOM to
- * permit a wider range of vehicles to be simulated.
- *
- * Currently under development is an expansion of the atmospheric modeling for
- * JSBSim.  The existing model approximates the standard atmosphere of 1976.
- * Recently, source code for the NRLMSISE-00 model was obtained and this is
- * being implemented as a C++ class that can optionally be used.  Also, a simple
- *  Mars atmosphere is being implemented.
+ * used to track orientation, avoiding "gimbal lock". JSBSim can modeling the
+ * atmospheric flight of an aircraft, or the motion of a spacecraft in orbit.
+ * Coriolis and centripetal accelerations are incorporated into the EOM.
  *
  * JSBSim can output (log) data in a configurable way.  Sets of data that are
  * logically related can be selected to be output at a chosen rate, and
@@ -223,7 +253,7 @@ CLASS DOCUMENTATION
  *
  * \section depends Dependencies
  *
- * JSBSim has no dependencies at present.
+ * JSBSim has no external dependencies at present.
  *
  * \section license Licensing
  *
@@ -239,6 +269,20 @@ IMPLEMENTATION
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%*/
 
 int main(int argc, char* argv[])
+{
+  try {
+    real_main(argc, argv);
+  } catch (string msg) {
+    std::cerr << "FATAL ERROR: JSBSim terminated with an exception."
+              << std::endl << "The message was: " << msg << std::endl;
+  } catch (...) {
+    std::cerr << "FATAL ERROR: JSBSim terminated with an unknown exception."
+              << std::endl;
+    throw;
+  }
+}
+
+int real_main(int argc, char* argv[])
 {
   // *** INITIALIZATIONS *** //
 
@@ -459,6 +503,10 @@ quit:
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+#define gripe cerr << "Option '" << keyword 	\
+	<< "' requires a value, as in '"	\
+	<< keyword << "=something'" << endl << endl;/**/
+
 bool options(int count, char **arg)
 {
   int i;
@@ -471,15 +519,12 @@ bool options(int count, char **arg)
 
   cout.setf(ios_base::fixed);
 
-#define gripe cerr << "Option '" << keyword 	\
-	<< "' requires a value, as in '"	\
-	<< keyword << "=something'" << endl << endl;/**/
-
   for (i=1; i<count; i++) {
     string argument = string(arg[i]);
     string keyword(argument);
     string value("");
     string::size_type n=argument.find("=");
+
     if (n != string::npos && n > 0) {
       keyword = argument.substr(0, n);
       value = argument.substr(n+1);
@@ -585,9 +630,21 @@ bool options(int count, char **arg)
     } else if (keyword == "--catalog") {
         catalog = true;
         if (value.size() > 0) AircraftName=value;
-    } else {
-      cerr << endl << "  Parameter: " << argument << " not understood" << endl;
-      result = false;
+
+    } else if (keyword.substr(0,2) != "--" && value.empty() ) {
+      // See what kind of files we are specifying on the command line
+
+      XMLFile xmlFile;
+      
+      if (xmlFile.IsScriptFile(keyword)) ScriptName = keyword;
+      else if (xmlFile.IsLogDirectiveFile(keyword))  LogDirectiveName.push_back(keyword);
+      // else if (xmlFile.IsAircraftFile(keyword)) AircraftName = keyword;
+      // else if (xmlFile.IsInitFile(keyword)) ResetName = keyword;
+      else {
+        cerr << "The argument, \"" << keyword << "\" cannot be interpreted as a file name or option." << endl;
+        exit(1);
+      }
+
     }
   }
 
@@ -615,7 +672,7 @@ bool options(int count, char **arg)
 void PrintHelp(void)
 {
   cout << endl << "  JSBSim version " << FDMExec->GetVersion() << endl << endl;
-  cout << "  Usage: jsbsim <options>" << endl << endl;
+  cout << "  Usage: jsbsim [script file name] [output file names] <options>" << endl << endl;
   cout << "  options:" << endl;
     cout << "    --help  returns this message" << endl;
     cout << "    --version  returns the version number" << endl;
@@ -635,7 +692,7 @@ void PrintHelp(void)
     cout << "    --simulation-rate=<rate (double)> specifies the sim dT time or frequency" << endl;
     cout << "    --end-time=<time (double)> specifies the sim end time" << endl << endl;
 
-  cout << "  NOTE: There can be no spaces around the = sign when" << endl;
-  cout << "        an option is followed by a filename" << endl << endl;
+    cout << "  NOTE: There can be no spaces around the = sign when" << endl;
+    cout << "        an option is followed by a filename" << endl << endl;
 }
 

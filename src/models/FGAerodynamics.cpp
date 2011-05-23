@@ -52,7 +52,7 @@ using namespace std;
 
 namespace JSBSim {
 
-static const char *IdSrc = "$Id: FGAerodynamics.cpp,v 1.32 2010/09/07 00:40:03 jberndt Exp $";
+static const char *IdSrc = "$Id: FGAerodynamics.cpp,v 1.38 2011/05/20 03:18:36 jberndt Exp $";
 static const char *IdHdr = ID_AERODYNAMICS;
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -80,7 +80,7 @@ FGAerodynamics::FGAerodynamics(FGFDMExec* FDMExec) : FGModel(FDMExec)
 
   axisType = atNone;
 
-  Coeff = new CoeffArray[6];
+  AeroFunctions = new AeroFunctionArray[6];
 
   impending_stall = stall_hyst = 0.0;
   alphaclmin = alphaclmax = 0.0;
@@ -103,10 +103,10 @@ FGAerodynamics::~FGAerodynamics()
   unsigned int i,j;
 
   for (i=0; i<6; i++)
-    for (j=0; j<Coeff[i].size(); j++)
-      delete Coeff[i][j];
+    for (j=0; j<AeroFunctions[i].size(); j++)
+      delete AeroFunctions[i][j];
 
-  delete[] Coeff;
+  delete[] AeroFunctions;
 
   delete AeroRPShift;
 
@@ -132,26 +132,30 @@ bool FGAerodynamics::InitModel(void)
 }
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-bool FGAerodynamics::Run(void)
+bool FGAerodynamics::Run(bool Holding)
 {
+
+  if (FGModel::Run(Holding)) return true;
+  if (Holding) return false; // if paused don't execute
+
   unsigned int axis_ctr, ctr;
-  double alpha, twovel;
-
-  if (FGModel::Run()) return true;
-  if (FDMExec->Holding()) return false; // if paused don't execute
-
+  const double alpha=FDMExec->GetAuxiliary()->Getalpha();
+  const double twovel=2*FDMExec->GetAuxiliary()->GetVt();
+  const double qbar = FDMExec->GetAuxiliary()->Getqbar();
+  const double wingarea = FDMExec->GetAircraft()->GetWingArea();  // TODO: Make these constants constant!
+  const double wingspan = FDMExec->GetAircraft()->GetWingSpan();
+  const double wingchord = FDMExec->GetAircraft()->Getcbar();
+  const double wingincidence = FDMExec->GetAircraft()->GetWingIncidence();
   RunPreFunctions();
 
   // calculate some oft-used quantities for speed
 
-  twovel = 2*Auxiliary->GetVt();
   if (twovel != 0) {
-    bi2vel = Aircraft->GetWingSpan() / twovel;
-    ci2vel = Aircraft->Getcbar() / twovel;
+    bi2vel = wingspan / twovel;
+    ci2vel = wingchord / twovel;
   }
-  alphaw = Auxiliary->Getalpha() + Aircraft->GetWingIncidence();
-  alpha = Auxiliary->Getalpha();
-  qbar_area = Aircraft->GetWingArea() * Auxiliary->Getqbar();
+  alphaw = alpha + wingincidence;
+  qbar_area = wingarea * qbar;
 
   if (alphaclmax != 0) {
     if (alpha > 0.85*alphaclmax) {
@@ -173,8 +177,8 @@ bool FGAerodynamics::Run(void)
   vFnative.InitMatrix();
 
   for (axis_ctr = 0; axis_ctr < 3; axis_ctr++) {
-    for (ctr=0; ctr < Coeff[axis_ctr].size(); ctr++) {
-      vFnative(axis_ctr+1) += Coeff[axis_ctr][ctr]->GetValue();
+    for (ctr=0; ctr < AeroFunctions[axis_ctr].size(); ctr++) {
+      vFnative(axis_ctr+1) += AeroFunctions[axis_ctr][ctr]->GetValue();
     }
   }
 
@@ -204,24 +208,24 @@ bool FGAerodynamics::Run(void)
   }
 
   // Calculate aerodynamic reference point shift, if any
-  if (AeroRPShift) vDeltaRP(eX) = AeroRPShift->GetValue()*Aircraft->Getcbar()*12.0;
+  if (AeroRPShift) vDeltaRP(eX) = AeroRPShift->GetValue()*wingchord*12.0;
 
   // Calculate lift coefficient squared
-  if ( Auxiliary->Getqbar() > 0) {
-    clsq = vFw(eLift) / (Aircraft->GetWingArea()*Auxiliary->Getqbar());
+  if ( qbar > 0) {
+    clsq = vFw(eLift) / (wingarea*qbar);
     clsq *= clsq;
   }
 
   // Calculate lift Lift over Drag
   if ( fabs(vFw(eDrag)) > 0.0) lod = fabs( vFw(eLift) / vFw(eDrag) );
 
-  vDXYZcg = MassBalance->StructuralToBody(Aircraft->GetXYZrp() + vDeltaRP);
+  vDXYZcg = FDMExec->GetMassBalance()->StructuralToBody(FDMExec->GetAircraft()->GetXYZrp() + vDeltaRP);
 
   vMoments = vDXYZcg*vForces; // M = r X F
 
   for (axis_ctr = 0; axis_ctr < 3; axis_ctr++) {
-    for (ctr = 0; ctr < Coeff[axis_ctr+3].size(); ctr++) {
-      vMoments(axis_ctr+1) += Coeff[axis_ctr+3][ctr]->GetValue();
+    for (ctr = 0; ctr < AeroFunctions[axis_ctr+3].size(); ctr++) {
+      vMoments(axis_ctr+1) += AeroFunctions[axis_ctr+3][ctr]->GetValue();
     }
   }
 
@@ -250,8 +254,8 @@ FGMatrix33& FGAerodynamics::GetTw2b(void)
 {
   double ca, cb, sa, sb;
 
-  double alpha = Auxiliary->Getalpha();
-  double beta  = Auxiliary->Getbeta();
+  double alpha = FDMExec->GetAuxiliary()->Getalpha();
+  double beta  = FDMExec->GetAuxiliary()->Getbeta();
 
   ca = cos(alpha);
   sa = sin(alpha);
@@ -278,8 +282,8 @@ FGMatrix33& FGAerodynamics::GetTb2w(void)
   double alpha,beta;
   double ca, cb, sa, sb;
 
-  alpha = Auxiliary->Getalpha();
-  beta  = Auxiliary->Getbeta();
+  alpha = FDMExec->GetAuxiliary()->Getalpha();
+  beta  = FDMExec->GetAuxiliary()->Getbeta();
 
   ca = cos(alpha);
   sa = sin(alpha);
@@ -345,14 +349,21 @@ bool FGAerodynamics::Load(Element *element)
 
   axis_element = document->FindElement("axis");
   while (axis_element) {
-    CoeffArray ca;
+    AeroFunctionArray ca;
     axis = axis_element->GetAttributeValue("name");
     function_element = axis_element->FindElement("function");
     while (function_element) {
-      ca.push_back( new FGFunction(PropertyManager, function_element) );
+      string current_func_name = function_element->GetAttributeValue("name");
+      try {
+        ca.push_back( new FGFunction(PropertyManager, function_element) );
+      } catch (string const str) {
+        cerr << endl << fgred << "Error loading aerodynamic function in " 
+             << current_func_name << ":" << str << " Aborting." << reset << endl;
+        return false;
+      }
       function_element = axis_element->FindNextElement("function");
     }
-    Coeff[AxisIdx[axis]] = ca;
+    AeroFunctions[AxisIdx[axis]] = ca;
     axis_element = document->FindNextElement("axis");
   }
 
@@ -377,23 +388,28 @@ void FGAerodynamics::DetermineAxisSystem()
   string axis;
   while (axis_element) {
     axis = axis_element->GetAttributeValue("name");
-    if (axis == "LIFT" || axis == "DRAG" || axis == "SIDE") {
+    if (axis == "LIFT" || axis == "DRAG") {
       if (axisType == atNone) axisType = atLiftDrag;
       else if (axisType != atLiftDrag) {
         cerr << endl << "  Mixed aerodynamic axis systems have been used in the"
-                     << " aircraft config file." << endl;
+                     << " aircraft config file. (LIFT DRAG)" << endl;
+      }
+    } else if (axis == "SIDE") {
+      if (axisType != atNone && axisType != atLiftDrag && axisType != atAxialNormal) {
+        cerr << endl << "  Mixed aerodynamic axis systems have been used in the"
+                     << " aircraft config file. (SIDE)" << endl;
       }
     } else if (axis == "AXIAL" || axis == "NORMAL") {
       if (axisType == atNone) axisType = atAxialNormal;
       else if (axisType != atAxialNormal) {
         cerr << endl << "  Mixed aerodynamic axis systems have been used in the"
-                     << " aircraft config file." << endl;
+                     << " aircraft config file. (NORMAL AXIAL)" << endl;
       }
     } else if (axis == "X" || axis == "Y" || axis == "Z") {
       if (axisType == atNone) axisType = atBodyXYZ;
       else if (axisType != atBodyXYZ) {
         cerr << endl << "  Mixed aerodynamic axis systems have been used in the"
-                     << " aircraft config file." << endl;
+                     << " aircraft config file. (XYZ)" << endl;
       }
     } else if (axis != "ROLL" && axis != "PITCH" && axis != "YAW") { // error
       cerr << endl << "  An unknown axis type, " << axis << " has been specified"
@@ -411,35 +427,35 @@ void FGAerodynamics::DetermineAxisSystem()
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-string FGAerodynamics::GetCoefficientStrings(const string& delimeter) const
+string FGAerodynamics::GetAeroFunctionStrings(const string& delimeter) const
 {
-  string CoeffStrings = "";
+  string AeroFunctionStrings = "";
   bool firstime = true;
   unsigned int axis, sd;
 
   for (axis = 0; axis < 6; axis++) {
-    for (sd = 0; sd < Coeff[axis].size(); sd++) {
+    for (sd = 0; sd < AeroFunctions[axis].size(); sd++) {
       if (firstime) {
         firstime = false;
       } else {
-        CoeffStrings += delimeter;
+        AeroFunctionStrings += delimeter;
       }
-      CoeffStrings += Coeff[axis][sd]->GetName();
+      AeroFunctionStrings += AeroFunctions[axis][sd]->GetName();
     }
   }
-  return CoeffStrings;
+  return AeroFunctionStrings;
 }
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-string FGAerodynamics::GetCoefficientValues(const string& delimeter) const
+string FGAerodynamics::GetAeroFunctionValues(const string& delimeter) const
 {
   ostringstream buf;
 
   for (unsigned int axis = 0; axis < 6; axis++) {
-    for (unsigned int sd = 0; sd < Coeff[axis].size(); sd++) {
+    for (unsigned int sd = 0; sd < AeroFunctions[axis].size(); sd++) {
       if (buf.tellp() > 0) buf << delimeter;
-      buf << setw(9) << Coeff[axis][sd]->GetValue();
+      buf << setw(9) << AeroFunctions[axis][sd]->GetValue();
     }
   }
 

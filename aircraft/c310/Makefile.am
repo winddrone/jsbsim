@@ -1,8 +1,6 @@
-aircraft_c310dir = ${pkgdatadir}/aircraft/c310
-aircraft_c310_DATA = \
-	reset00.xml \
-	c310ap.xml \
-	c310.xml \
+EXTRA_DIST = \
 	README.c310 \
-	ellington.xml 
-EXTRA_DIST=$(aircraft_c310_DATA)
+	c310.xml \
+	c310ap.xml \
+	ellington.xml \
+	reset00.xml

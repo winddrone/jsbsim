@@ -47,7 +47,7 @@ SENTRY
   DEFINITIONS
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%*/
 
-#define ID_QUATERNION "$Id: FGQuaternion.h,v 1.17 2010/06/30 03:13:40 jberndt Exp $"
+#define ID_QUATERNION "$Id: FGQuaternion.h,v 1.22 2010/12/07 12:57:14 jberndt Exp $"
 
 namespace JSBSim {
 
@@ -88,7 +88,7 @@ class FGMatrix33;
   CLASS DECLARATION
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%*/
 
-class FGQuaternion : virtual FGJSBBase {
+class FGQuaternion : public FGJSBBase {
 public:
   /** Default initializer.
       Default initializer, initializes the class with the identity rotation.  */
@@ -177,7 +177,7 @@ public:
   const FGMatrix33& GetTInv(void) const { ComputeDerived(); return mTInv; }
 
   /** Retrieves the Euler angles.
-      @return a reference to the triad of euler angles corresponding
+      @return a reference to the triad of Euler angles corresponding
       to this quaternion rotation.
       units radians  */
   const FGColumnVector3& GetEuler(void) const {
@@ -186,7 +186,7 @@ public:
   }
 
   /** Retrieves the Euler angles.
-      @param i the euler angle index.
+      @param i the Euler angle index.
       units radians.
       @return a reference to the i-th euler angles corresponding
       to this quaternion rotation.
@@ -197,13 +197,22 @@ public:
   }
 
   /** Retrieves the Euler angles.
-      @param i the euler angle index.
+      @param i the Euler angle index.
       @return a reference to the i-th euler angles corresponding
       to this quaternion rotation.
       units degrees */
   double GetEulerDeg(int i) const {
     ComputeDerived();
     return radtodeg*mEulerAngles(i);
+  }
+
+  /** Retrieves the Euler angle vector.
+      @return an Euler angle column vector corresponding
+      to this quaternion rotation.
+      units degrees */
+  FGColumnVector3 const GetEulerDeg(void) const {
+    ComputeDerived();
+    return radtodeg*mEulerAngles;
   }
 
   /** Retrieves sine of the given euler angle.
@@ -284,10 +293,10 @@ public:
       @return reference to a quaternion object  */
   const FGQuaternion& operator=(const FGQuaternion& q) {
     // Copy the master values ...
-    data[0] = q(1);
-    data[1] = q(2);
-    data[2] = q(3);
-    data[3] = q(4);
+    data[0] = q.data[0];
+    data[1] = q.data[1];
+    data[2] = q.data[2];
+    data[3] = q.data[3];
     ComputeDerived();
     // .. and copy the derived values if they are valid
     mCacheValid = q.mCacheValid;
@@ -308,8 +317,8 @@ public:
       @param q a quaternion reference
       @return true if both quaternions represent the same rotation.  */
   bool operator==(const FGQuaternion& q) const {
-    return data[0] == q(1) && data[1] == q(2)
-      && data[2] == q(3) && data[3] == q(4);
+    return data[0] == q.data[0] && data[1] == q.data[1]
+      && data[2] == q.data[2] && data[3] == q.data[3];
   }
 
   /** Comparison operator "!=".
@@ -318,10 +327,10 @@ public:
   bool operator!=(const FGQuaternion& q) const { return ! operator==(q); }
   const FGQuaternion& operator+=(const FGQuaternion& q) {
     // Copy the master values ...
-    data[0] += q(1);
-    data[1] += q(2);
-    data[2] += q(3);
-    data[3] += q(4);
+    data[0] += q.data[0];
+    data[1] += q.data[1];
+    data[2] += q.data[2];
+    data[3] += q.data[3];
     mCacheValid = false;
     return *this;
   }
@@ -331,10 +340,10 @@ public:
       @return a quaternion reference representing Q, where Q = Q - q. */
   const FGQuaternion& operator-=(const FGQuaternion& q) {
     // Copy the master values ...
-    data[0] -= q(1);
-    data[1] -= q(2);
-    data[2] -= q(3);
-    data[3] -= q(4);
+    data[0] -= q.data[0];
+    data[1] -= q.data[1];
+    data[2] -= q.data[2];
+    data[3] -= q.data[3];
     mCacheValid = false;
     return *this;
   }
@@ -362,16 +371,16 @@ public:
       @param q a quaternion to be summed.
       @return a quaternion representing Q, where Q = Q + q. */
   FGQuaternion operator+(const FGQuaternion& q) const {
-    return FGQuaternion(data[0]+q(1), data[1]+q(2),
-                        data[2]+q(3), data[3]+q(4));
+    return FGQuaternion(data[0]+q.data[0], data[1]+q.data[1],
+                        data[2]+q.data[2], data[3]+q.data[3]);
   }
 
   /** Arithmetic operator "-".
       @param q a quaternion to be subtracted.
       @return a quaternion representing Q, where Q = Q - q. */
   FGQuaternion operator-(const FGQuaternion& q) const {
-    return FGQuaternion(data[0]-q(1), data[1]-q(2),
-                        data[2]-q(3), data[3]-q(4));
+    return FGQuaternion(data[0]-q.data[0], data[1]-q.data[1],
+                        data[2]-q.data[2], data[3]-q.data[3]);
   }
 
   /** Arithmetic operator "*".
@@ -379,10 +388,10 @@ public:
       @param q a quaternion to be multiplied.
       @return a quaternion representing Q, where Q = Q * q. */
   FGQuaternion operator*(const FGQuaternion& q) const {
-    return FGQuaternion(data[0]*q(1)-data[1]*q(2)-data[2]*q(3)-data[3]*q(4),
-                        data[0]*q(2)+data[1]*q(1)+data[2]*q(4)-data[3]*q(3),
-                        data[0]*q(3)-data[1]*q(4)+data[2]*q(1)+data[3]*q(2),
-                        data[0]*q(4)+data[1]*q(3)-data[2]*q(2)+data[3]*q(1));
+    return FGQuaternion(data[0]*q.data[0]-data[1]*q.data[1]-data[2]*q.data[2]-data[3]*q.data[3],
+                        data[0]*q.data[1]+data[1]*q.data[0]+data[2]*q.data[3]-data[3]*q.data[2],
+                        data[0]*q.data[2]-data[1]*q.data[3]+data[2]*q.data[0]+data[3]*q.data[1],
+                        data[0]*q.data[3]+data[1]*q.data[2]-data[2]*q.data[1]+data[3]*q.data[0]);
   }
 
   /** Arithmetic operator "*=".
@@ -390,10 +399,10 @@ public:
       @param q a quaternion to be multiplied.
       @return a quaternion reference representing Q, where Q = Q * q. */
   const FGQuaternion& operator*=(const FGQuaternion& q) {
-    double q0 = data[0]*q(1)-data[1]*q(2)-data[2]*q(3)-data[3]*q(4);
-    double q1 = data[0]*q(2)+data[1]*q(1)+data[2]*q(4)-data[3]*q(3);
-    double q2 = data[0]*q(3)-data[1]*q(4)+data[2]*q(1)+data[3]*q(2);
-    double q3 = data[0]*q(4)+data[1]*q(3)-data[2]*q(2)+data[3]*q(1);
+    double q0 = data[0]*q.data[0]-data[1]*q.data[1]-data[2]*q.data[2]-data[3]*q.data[3];
+    double q1 = data[0]*q.data[1]+data[1]*q.data[0]+data[2]*q.data[3]-data[3]*q.data[2];
+    double q2 = data[0]*q.data[2]-data[1]*q.data[3]+data[2]*q.data[0]+data[3]*q.data[1];
+    double q3 = data[0]*q.data[3]+data[1]*q.data[2]-data[2]*q.data[1]+data[3]*q.data[0];
     data[0] = q0;
     data[1] = q1;
     data[2] = q2;
@@ -497,8 +506,6 @@ private:
   mutable FGColumnVector3 mEulerSines;
   mutable FGColumnVector3 mEulerCosines;
 
-  void Debug(int from) const;
-
   void InitializeFromEulerAngles(double phi, double tht, double psi);
 };
 
@@ -510,8 +517,14 @@ private:
     Multiply the Vector with a scalar value.
 */
 inline FGQuaternion operator*(double scalar, const FGQuaternion& q) {
-  return FGQuaternion(scalar*q(1), scalar*q(2), scalar*q(3), scalar*q(4));
+  return FGQuaternion(scalar*q.data[0], scalar*q.data[1], scalar*q.data[2], scalar*q.data[3]);
 }
+
+/** Write quaternion to a stream.
+    @param os Stream to write to.
+    @param q Quaternion to write.
+    Write the quaternion to a stream.*/
+std::ostream& operator<<(std::ostream& os, const FGQuaternion& q);
 
 } // namespace JSBSim
 

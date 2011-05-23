@@ -41,11 +41,12 @@ SENTRY
 INCLUDES
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%*/
 
-#include "models/FGModel.h"
+#include <vector>
+#include <string>
+
 #include "models/FGOutput.h"
 #include "models/FGInput.h"
 #include "initialization/FGTrim.h"
-#include "initialization/FGInitialCondition.h"
 #include "FGJSBBase.h"
 #include "input_output/FGPropertyManager.h"
 #include "input_output/FGGroundCallback.h"
@@ -53,14 +54,11 @@ INCLUDES
 #include "models/FGPropagate.h"
 #include "math/FGColumnVector3.h"
 
-#include <vector>
-#include <string>
-
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 DEFINITIONS
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%*/
 
-#define ID_FDMEXEC "$Id: FGFDMExec.h,v 1.52 2010/07/04 13:50:21 jberndt Exp $"
+#define ID_FDMEXEC "$Id: FGFDMExec.h,v 1.64 2011/05/20 03:18:36 jberndt Exp $"
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 FORWARD DECLARATIONS
@@ -70,6 +68,20 @@ namespace JSBSim {
 
 class FGScript;
 class FGTrim;
+class FGAerodynamics;
+class FGAircraft;
+class FGAtmosphere;
+class FGAuxiliary;
+class FGBuoyantForces;
+class FGExternalReactions;
+class FGGroundReactions;
+class FGFCS;
+class FGInertial;
+class FGInput;
+class FGOutput;
+class FGPropagate;
+class FGPropulsion;
+class FGMassBalance;
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 CLASS DOCUMENTATION
@@ -87,8 +99,8 @@ CLASS DOCUMENTATION
     file:
 
     @code
-    fdmex = new FGFDMExec( … );
-    result = fdmex->LoadModel( … );
+    fdmex = new FGFDMExec( ... );
+    result = fdmex->LoadModel( ... );
     @endcode
 
     When an aircraft model is loaded, the config file is parsed and for each of the
@@ -169,7 +181,7 @@ CLASS DOCUMENTATION
                                 property actually maps toa function call of DoTrim().
 
     @author Jon S. Berndt
-    @version $Revision: 1.52 $
+    @version $Revision: 1.64 $
 */
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -207,10 +219,13 @@ class FGFDMExec : public FGJSBBase, public FGXMLFileRead
 public:
 
   /// Default constructor
-  FGFDMExec(FGPropertyManager* root = 0);
+  FGFDMExec(FGPropertyManager* root = 0, unsigned int* fdmctr = 0);
 
   /// Default destructor
   ~FGFDMExec();
+
+  /** Unbind all tied JSBSim properties. */
+  void Unbind(void) {instance->Unbind();}
 
   /** This routine places a model into the runlist at the specified rate. The
       "rate" is not really a clock rate. It represents how many calls to the
@@ -252,8 +267,8 @@ public:
       @param addModelToPath set to true to add the model name to the
       AircraftPath, defaults to true
       @return true if successful */
-  bool LoadModel(string AircraftPath, string EnginePath, string SystemsPath,
-                 string model, bool addModelToPath = true);
+  bool LoadModel(const string& AircraftPath, const string& EnginePath, const string& SystemsPath,
+                 const string& model, bool addModelToPath = true);
 
   /** Loads an aircraft model.  The paths to the aircraft and engine
       config file directories must be set prior to calling this.  See
@@ -265,90 +280,93 @@ public:
       @param addModelToPath set to true to add the model name to the
       AircraftPath, defaults to true
       @return true if successful*/
-  bool LoadModel(string model, bool addModelToPath = true);
+  bool LoadModel(const string& model, bool addModelToPath = true);
 
   /** Loads a script
       @param Script the full path name and file name for the script to be loaded.
+      @param deltaT The simulation integration step size, if given.  If no value is supplied
+                    then 0.0 is used and the value is expected to be supplied in
+                    the script file itself.
       @return true if successfully loadsd; false otherwise. */
-  bool LoadScript(string Script, double deltaT);
+  bool LoadScript(const string& Script, double deltaT=0.0);
 
   /** Sets the path to the engine config file directories.
       @param path path to the directory under which engine config
       files are kept, for instance "engine"  */
-  bool SetEnginePath(string path)   { EnginePath = RootDir + path; return true; }
+  bool SetEnginePath(const string& path)   { EnginePath = RootDir + path; return true; }
 
   /** Sets the path to the aircraft config file directories.
       @param path path to the aircraft directory. For instance:
       "aircraft". Under aircraft, then, would be directories for various
       modeled aircraft such as C172/, x15/, etc.  */
-  bool SetAircraftPath(string path) { AircraftPath = RootDir + path; return true; }
+  bool SetAircraftPath(const string& path) { AircraftPath = RootDir + path; return true; }
   
   /** Sets the path to the systems config file directories.
       @param path path to the directory under which systems config
       files are kept, for instance "systems"  */
-  bool SetSystemsPath(string path)   { SystemsPath = RootDir + path; return true; }
+  bool SetSystemsPath(const string& path)   { SystemsPath = RootDir + path; return true; }
   
   /// @name Top-level executive State and Model retrieval mechanism
   //@{
   /// Returns the FGAtmosphere pointer.
-  inline FGAtmosphere* GetAtmosphere(void)    {return Atmosphere;}
+  FGAtmosphere* GetAtmosphere(void)    {return Atmosphere;}
   /// Returns the FGFCS pointer.
-  inline FGFCS* GetFCS(void)                  {return FCS;}
+  FGFCS* GetFCS(void)                  {return FCS;}
   /// Returns the FGPropulsion pointer.
-  inline FGPropulsion* GetPropulsion(void)    {return Propulsion;}
+  FGPropulsion* GetPropulsion(void)    {return Propulsion;}
   /// Returns the FGAircraft pointer.
-  inline FGMassBalance* GetMassBalance(void)  {return MassBalance;}
+  FGMassBalance* GetMassBalance(void)  {return MassBalance;}
   /// Returns the FGAerodynamics pointer
-  inline FGAerodynamics* GetAerodynamics(void){return Aerodynamics;}
+  FGAerodynamics* GetAerodynamics(void){return Aerodynamics;}
   /// Returns the FGInertial pointer.
-  inline FGInertial* GetInertial(void)        {return Inertial;}
+  FGInertial* GetInertial(void)        {return Inertial;}
   /// Returns the FGGroundReactions pointer.
-  inline FGGroundReactions* GetGroundReactions(void) {return GroundReactions;}
+  FGGroundReactions* GetGroundReactions(void) {return GroundReactions;}
   /// Returns the FGExternalReactions pointer.
-  inline FGExternalReactions* GetExternalReactions(void) {return ExternalReactions;}
+  FGExternalReactions* GetExternalReactions(void) {return ExternalReactions;}
   /// Returns the FGBuoyantForces pointer.
-  inline FGBuoyantForces* GetBuoyantForces(void) {return BuoyantForces;}
+  FGBuoyantForces* GetBuoyantForces(void) {return BuoyantForces;}
   /// Returns the FGAircraft pointer.
-  inline FGAircraft* GetAircraft(void)        {return Aircraft;}
+  FGAircraft* GetAircraft(void)        {return Aircraft;}
   /// Returns the FGPropagate pointer.
-  inline FGPropagate* GetPropagate(void)      {return Propagate;}
+  FGPropagate* GetPropagate(void)      {return Propagate;}
   /// Returns the FGAuxiliary pointer.
-  inline FGAuxiliary* GetAuxiliary(void)      {return Auxiliary;}
+  FGAuxiliary* GetAuxiliary(void)      {return Auxiliary;}
   /// Returns the FGInput pointer.
-  inline FGInput* GetInput(void)              {return Input;}
+  FGInput* GetInput(void)              {return Input;}
   /// Returns the FGGroundCallback pointer.
-  inline FGGroundCallback* GetGroundCallback(void) {return GroundCallback;}
+  FGGroundCallback* GetGroundCallback(void) {return GroundCallback;}
   /// Retrieves the script object
-  inline FGScript* GetScript(void) {return Script;}
+  FGScript* GetScript(void) {return Script;}
   // Returns a pointer to the FGInitialCondition object
-  inline FGInitialCondition* GetIC(void)      {return IC;}
+  FGInitialCondition* GetIC(void)      {return IC;}
   // Returns a pointer to the FGTrim object
   FGTrim* GetTrim(void);
   //@}
 
   /// Retrieves the engine path.
-  inline string GetEnginePath(void)          {return EnginePath;}
+  const string& GetEnginePath(void)    {return EnginePath;}
   /// Retrieves the aircraft path.
-  inline string GetAircraftPath(void)        {return AircraftPath;}
+  const string& GetAircraftPath(void)  {return AircraftPath;}
   /// Retrieves the systems path.
-  inline string GetSystemsPath(void)         {return SystemsPath;}
+  const string& GetSystemsPath(void)   {return SystemsPath;}
   /// Retrieves the full aircraft path name.
-  inline string GetFullAircraftPath(void)    {return FullAircraftPath;}
+  const string& GetFullAircraftPath(void) {return FullAircraftPath;}
 
   /** Retrieves the value of a property.
       @param property the name of the property
       @result the value of the specified property */
-  inline double GetPropertyValue(string property) {return instance->GetDouble(property);}
+  inline double GetPropertyValue(const string& property) {return instance->GetDouble(property);}
 
   /** Sets a property value.
       @param property the property to be set
       @param value the value to set the property to */
-  inline void SetPropertyValue(string property, double value) {
+  inline void SetPropertyValue(const string& property, double value) {
     instance->SetDouble(property, value);
   }
 
   /// Returns the model name.
-  string GetModelName(void) { return modelName; }
+  const string& GetModelName(void) { return modelName; }
 /*
   /// Returns the current time.
   double GetSimTime(void);
@@ -382,12 +400,15 @@ public:
       be logged.
       @param fname the filename of an output directives file.
     */
-  bool SetOutputDirectives(string fname);
+  bool SetOutputDirectives(const string& fname);
+
+  /** Forces the specified output object to print its items once */
+  void ForceOutput(int idx=0);
 
   /** Sets (or overrides) the output filename
       @param fname the name of the file to output data to
       @return true if successful, false if there is no output specified for the flight model */
-  bool SetOutputFileName(string fname) {
+  bool SetOutputFileName(const string& fname) {
     if (Outputs.size() > 0) Outputs[0]->SetOutputFileName(fname);
     else return false;
     return true;
@@ -411,7 +432,6 @@ public:
   * - tTurn
   * - tNone  */
   void DoTrim(int mode);
-//  void DoTrimAnalysis(int mode);
 
   /// Disables data logging to all outputs.
   void DisableOutput(void);
@@ -447,7 +467,7 @@ public:
   *   @param check The string to search for in the property catalog.
   *   @return the carriage-return-delimited string containing all matching strings
   *               in the catalog.  */
-  string QueryPropertyCatalog(string check);
+  string QueryPropertyCatalog(const string& check);
 
   // Print the contents of the property catalog for the loaded aircraft.
   void PrintPropertyCatalog(void);
@@ -495,16 +515,18 @@ public:
 
   /** Sets the root directory where JSBSim starts looking for its system directories.
       @param rootDir the string containing the root directory. */
-  void SetRootDir(string rootDir) {RootDir = rootDir;}
+  void SetRootDir(const string& rootDir) {RootDir = rootDir;}
 
-  /** Retrieves teh Root Directory.
+  /** Retrieves the Root Directory.
       @return the string representing the root (base) JSBSim directory. */
-  string GetRootDir(void) const {return RootDir;}
+  const string& GetRootDir(void) const {return RootDir;}
 
-  /** Increments the simulation time.
+  /** Increments the simulation time if not in Holding mode. The Frame counter
+      is also incremented.
       @return the new simulation time.     */
   double IncrTime(void) {
-    sim_time += dT;
+    if (!holding) sim_time += dT;
+    Frame++;
     return sim_time;
   }
 
@@ -512,7 +534,6 @@ public:
   int GetDebugLevel(void) const {return debug_lvl;};
 
 private:
-  static unsigned int FDMctr;
   int Error;
   unsigned int Frame;
   unsigned int IdFDM;
@@ -536,8 +557,6 @@ private:
   bool trim_status;
   int ta_mode;
 
-  static FGPropertyManager *master;
-
   FGGroundCallback*   GroundCallback;
   FGAtmosphere*       Atmosphere;
   FGFCS*              FCS;
@@ -557,7 +576,11 @@ private:
   FGTrim*             Trim;
 
   FGPropertyManager* Root;
+  bool StandAlone;
   FGPropertyManager* instance;
+  
+  // The FDM counter is used to give each child FDM an unique ID. The root FDM has the ID 0
+  unsigned int*      FDMctr;
 
   vector <string> PropertyCatalog;
   vector <FGOutput*> Outputs;

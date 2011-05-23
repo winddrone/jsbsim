@@ -45,7 +45,7 @@ using namespace std;
 
 namespace JSBSim {
 
-static const char *IdSrc = "$Id: FGBuoyantForces.cpp,v 1.13 2010/09/07 00:40:03 jberndt Exp $";
+static const char *IdSrc = "$Id: FGBuoyantForces.cpp,v 1.17 2011/05/20 03:18:36 jberndt Exp $";
 static const char *IdHdr = ID_BUOYANTFORCES;
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -80,17 +80,15 @@ FGBuoyantForces::~FGBuoyantForces()
 
 bool FGBuoyantForces::InitModel(void)
 {
-  if (!FGModel::InitModel()) return false;
-
   return true;
 }
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-bool FGBuoyantForces::Run(void)
+bool FGBuoyantForces::Run(bool Holding)
 {
-  if (FGModel::Run()) return true;
-  if (FDMExec->Holding()) return false; // if paused don't execute
+  if (FGModel::Run(Holding)) return true;
+  if (Holding) return false; // if paused don't execute
   if (NoneDefined) return true;
 
   RunPreFunctions();
@@ -181,7 +179,7 @@ const FGMatrix33& FGBuoyantForces::GetGasMassInertia(void)
   gasCellJ = FGMatrix33();
 
   for (unsigned int i=0; i < size; i++) {
-    FGColumnVector3 v = MassBalance->StructuralToBody( Cells[i]->GetXYZ() );
+    FGColumnVector3 v = FDMExec->GetMassBalance()->StructuralToBody( Cells[i]->GetXYZ() );
     // Body basis is in FT. 
     const double mass = Cells[i]->GetMass();
     
@@ -213,13 +211,13 @@ string FGBuoyantForces::GetBuoyancyStrings(string delimeter)
   }
 
   for (axis = 0; axis < 6; axis++) {
-    for (sd = 0; sd < Coeff[axis].size(); sd++) {
+    for (sd = 0; sd < AeroFunctions[axis].size(); sd++) {
       if (firstime) {
         firstime = false;
       } else {
         CoeffStrings += delimeter;
       }
-      CoeffStrings += Coeff[axis][sd]->GetName();
+      CoeffStrings += AeroFunctions[axis][sd]->GetName();
     }
   }
 */
@@ -243,13 +241,13 @@ string FGBuoyantForces::GetBuoyancyValues(string delimeter)
   }
 
   for (unsigned int axis = 0; axis < 6; axis++) {
-    for (unsigned int sd = 0; sd < Coeff[axis].size(); sd++) {
+    for (unsigned int sd = 0; sd < AeroFunctions[axis].size(); sd++) {
       if (firstime) {
         firstime = false;
       } else {
         SDValues += delimeter;
       }
-      SDValues += Coeff[axis][sd]->GetValueAsString();
+      SDValues += AeroFunctions[axis][sd]->GetValueAsString();
     }
   }
 */
@@ -260,19 +258,20 @@ string FGBuoyantForces::GetBuoyancyValues(string delimeter)
 
 void FGBuoyantForces::bind(void)
 {
-  typedef double (FGBuoyantForces::*PMF)(int) const;
+  typedef double (FGBuoyantForces::*PGF)(int) const;
+  typedef void   (FGBuoyantForces::*PSF)(int, double);
   PropertyManager->Tie("moments/l-buoyancy-lbsft", this, eL,
-                       (PMF)&FGBuoyantForces::GetMoments);
+                       (PGF)&FGBuoyantForces::GetMoments, (PSF)0, false);
   PropertyManager->Tie("moments/m-buoyancy-lbsft", this, eM,
-                       (PMF)&FGBuoyantForces::GetMoments);
+                       (PGF)&FGBuoyantForces::GetMoments, (PSF)0, false);
   PropertyManager->Tie("moments/n-buoyancy-lbsft", this, eN,
-                       (PMF)&FGBuoyantForces::GetMoments);
+                       (PGF)&FGBuoyantForces::GetMoments, (PSF)0, false);
   PropertyManager->Tie("forces/fbx-buoyancy-lbs", this, eX,
-                       (PMF)&FGBuoyantForces::GetForces);
+                       (PGF)&FGBuoyantForces::GetForces, (PSF)0, false);
   PropertyManager->Tie("forces/fby-buoyancy-lbs", this, eY,
-                       (PMF)&FGBuoyantForces::GetForces);
+                       (PGF)&FGBuoyantForces::GetForces, (PSF)0, false);
   PropertyManager->Tie("forces/fbz-buoyancy-lbs", this, eZ,
-                       (PMF)&FGBuoyantForces::GetForces);
+                       (PGF)&FGBuoyantForces::GetForces, (PSF)0, false);
 }
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

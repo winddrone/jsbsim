@@ -49,7 +49,7 @@ std::vector<double> FGTrimmer::constrain(const std::vector<double> & v)
     // initialize constraints
     double vt = m_constraints.velocity;
     double altitude = m_constraints.altitude;
-    double phi = 0.0, theta = 0.0, psi = 90.0*M_PI/180.0; // heading 90 to avoid 0-360 transition
+    double phi = 0.0, theta = 0.0, psi = 0.0*M_PI/180.0; // head 0
     double p = 0.0, q = 0.0, r= 0.0;
 
     // precomputation
@@ -134,7 +134,7 @@ std::vector<double> FGTrimmer::constrain(const std::vector<double> & v)
     {
         FGEngine * engine = propulsion()->GetEngine(i);
         propulsion()->GetEngine(i)->InitRunning();
-        propulsion()->GetEngine(i)->SetTrimMode(true);
+        //propulsion()->GetEngine(i)->SetTrimMode(true);
         fcs()->SetThrottleCmd(i,tmin+throttle*(tmax-tmin));
     }
 
@@ -349,6 +349,7 @@ double FGTrimmer::eval(const std::vector<double> & v)
     for (int iter=0;;iter++)
     {
 		constrain(v);
+		//printState();
         dvt = (propagate()->GetUVW(1)*propagate()->GetUVWdot(1) +
                propagate()->GetUVW(2)*propagate()->GetUVWdot(2) +
                propagate()->GetUVW(3)*propagate()->GetUVWdot(3))/
@@ -369,13 +370,14 @@ double FGTrimmer::eval(const std::vector<double> & v)
         }
         else if (iter>100)
         {
-            //std::cout << "\ncost failed to converge to steady value"
-                      //<< std::scientific
-                      //<< "\ndelta dvt: " << std::abs(dvt0-dvt)
-                      //<< "\nmost likely out of the flight envelope"
-                      //<< "\ncheck constraints and initial conditions"
-                      //<< std::endl;
-			throw(std::runtime_error("FGTrimmer: cost failed to converge to steady value, most likely out of flight envelope, check constraints and initial conditions"));
+			std::cout << "\ncost failed to converge to steady value"
+					  << std::scientific
+					  << "\ndelta dvt: " << std::abs(dvt0-dvt)
+					  << "\nmost likely out of the flight envelope"
+					  << "\ncheck constraints and initial conditions"
+					  << std::endl;
+			//throw(std::runtime_error("FGTrimmer: cost failed to converge to steady value, most likely out of flight envelope, check constraints and initial conditions"));
+			break;
         }
         else dvt0=dvt;
     }

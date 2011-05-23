@@ -1,24 +1,21 @@
-systemsdir = ${pkgdatadir}/systems
-systems_DATA = \
-	hook.xml \
-	gear.xml \
+EXTRA_DIST = \
 	BLC.xml \
-	Autopilot.xml \
-	jsb_glue.xml \
-	FCS-roll.xml \
-	afcs.xml \
-	tail_wheel_lock.xml \
-	alpha_buffet.xml \
-	FCS-yaw.xml \
-	catapult.xml \
 	FCS-pitch.xml \
-	airship_added_mass.xml \
-	flaps.xml \
-	speedbrakes.xml \
-	fg_glue.xml \
+	FCS-roll.xml \
+	FCS-yaw.xml \
 	NWS.xml \
-	rpm_governor.xml \
+	catapult.xml \
+	flaps.xml \
+	gear.xml \
+	holdback.xml \
+	hook.xml \
 	refuel.xml \
+	speedbrakes.xml \
 	GNCUtilities.xml \
-	holdback.xml 
-EXTRA_DIST=$(systems_DATA)
+	Autopilot.xml \
+	airship_added_mass.xml \
+	tail_wheel_lock.xml \
+	afcs.xml \
+	fg_glue.xml \
+	jsb_glue.xml \
+	rpm_governor.xml

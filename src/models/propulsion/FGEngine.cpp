@@ -54,7 +54,7 @@ using namespace std;
 
 namespace JSBSim {
 
-static const char *IdSrc = "$Id: FGEngine.cpp,v 1.39 2010/08/21 17:13:48 jberndt Exp $";
+static const char *IdSrc = "$Id: FGEngine.cpp,v 1.42 2011/03/03 12:16:26 jberndt Exp $";
 static const char *IdHdr = ID_ENGINE;
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -109,7 +109,11 @@ FGEngine::FGEngine(FGFDMExec* exec, Element* engine_element, int engine_number)
   // Load thruster
   local_element = engine_element->GetParent()->FindElement("thruster");
   if (local_element) {
-    if (!LoadThruster(local_element)) exit(-1);
+    try {
+      if (!LoadThruster(local_element)) exit(-1);
+    } catch (std::string str) {
+      throw("Error loading engine " + Name + ". " + str);
+    }
   } else {
     cerr << "No thruster definition supplied with engine definition." << endl;
   }
@@ -147,6 +151,8 @@ FGEngine::FGEngine(FGFDMExec* exec, Element* engine_element, int engine_number)
   PropertyManager->Tie( property_name.c_str(), Thruster, &FGThruster::GetThrust);
   property_name = base_property_name + "/fuel-flow-rate-pps";
   PropertyManager->Tie( property_name.c_str(), this, &FGEngine::GetFuelFlowRate);
+  property_name = base_property_name + "/fuel-used-lbs";
+  PropertyManager->Tie( property_name.c_str(), this, &FGEngine::GetFuelUsedLbs);
 
   PostLoad(engine_element, PropertyManager, to_string(EngineNumber));
 
@@ -173,11 +179,11 @@ void FGEngine::ResetToIC(void)
   FuelExpended = 0.0;
   Starved = Running = Cranking = false;
   PctPower = 0.0;
-  TrimMode = false;
   FuelFlow_gph = 0.0;
   FuelFlow_pph = 0.0;
   FuelFlowRate = 0.0;
   FuelFreeze = false;
+  FuelUsedLbs = 0.0;
 }
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -190,7 +196,7 @@ void FGEngine::ResetToIC(void)
 void FGEngine::ConsumeFuel(void)
 {
   if (FuelFreeze) return;
-  if (TrimMode) return;
+  if (FDMExec->GetTrimStatus()) return;
 
   unsigned int i;
   double Fshortage, FuelNeeded;
@@ -236,6 +242,7 @@ void FGEngine::ConsumeFuel(void)
     Tank = Propulsion->GetTank(FeedList[i]);
     Tank->Drain(FuelNeeded); 
   }
+  FuelUsedLbs += FuelToBurn;
 
 }
 

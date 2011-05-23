@@ -51,7 +51,7 @@ INCLUDES
 DEFINITIONS
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%*/
 
-#define ID_FCS "$Id: FGFCS.h,v 1.31 2010/09/22 11:33:40 jberndt Exp $"
+#define ID_FCS "$Id: FGFCS.h,v 1.36 2011/05/20 03:18:36 jberndt Exp $"
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 FORWARD DECLARATIONS
@@ -168,7 +168,7 @@ CLASS DOCUMENTATION
     @property gear/tailhook-pos-norm
 
     @author Jon S. Berndt
-    @version $Revision: 1.31 $
+    @version $Revision: 1.36 $
     @see FGActuator
     @see FGDeadBand
     @see FGFCSFunction
@@ -200,8 +200,13 @@ public:
   bool InitModel(void);
 
   /** Runs the Flight Controls model; called by the Executive
+      Can pass in a value indicating if the executive is directing the simulation to Hold.
+      @param Holding if true, the executive has been directed to hold the sim from 
+                     advancing time. Some models may ignore this flag, such as the Input
+                     model, which may need to be active to listen on a socket for the
+                     "Resume" command to be given.
       @return false if no error */
-  bool Run(void);
+  bool Run(bool Holding);
 
   /// @name Pilot input command retrieval
   //@{
@@ -348,13 +353,13 @@ public:
   /** Retrieves all component names for inclusion in output stream
       @param delimiter either a tab or comma string depending on output type
       @return a string containing the descriptive names for all components */
-  std::string GetComponentStrings(const std::string& delimiter);
+  std::string GetComponentStrings(const std::string& delimiter) const;
 
   /** Retrieves all component outputs for inclusion in output stream
       @param delimiter either a tab or comma string depending on output type
       @return a string containing the numeric values for the current set of
       component outputs */
-  std::string GetComponentValues(const std::string& delimiter);
+  std::string GetComponentValues(const std::string& delimiter) const;
 
   /// @name Pilot input command setting
   //@{
@@ -540,7 +545,7 @@ public:
 
   FGPropertyManager* GetPropertyManager(void) { return PropertyManager; }
 
-  void LateBind(void);
+  bool GetTrimStatus(void) const { return FDMExec->GetTrimStatus(); }
 
 private:
   double DaCmd, DeCmd, DrCmd, DsCmd, DfCmd, DsbCmd, DspCmd;

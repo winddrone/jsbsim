@@ -61,9 +61,6 @@ INCLUDES
 #include <cstring>
 #include <cstdlib>
 
-#include "input_output/net_fdm.hxx"
-#include "input_output/FGfdmSocket.h"
-
 #if defined(WIN32) && !defined(__CYGWIN__)
 #  include <windows.h>
 #else
@@ -77,7 +74,7 @@ using namespace std;
 
 namespace JSBSim {
 
-static const char *IdSrc = "$Id: FGOutput.cpp,v 1.48 2010/04/12 12:25:19 jberndt Exp $";
+static const char *IdSrc = "$Id: FGOutput.cpp,v 1.55 2011/05/20 03:18:36 jberndt Exp $";
 static const char *IdHdr = ID_OUTPUT;
 
 // (stolen from FGFS native_fdm.cxx)
@@ -132,7 +129,6 @@ FGOutput::FGOutput(FGFDMExec* fdmex) : FGModel(fdmex)
   Name = "FGOutput";
   sFirstPass = dFirstPass = true;
   socket = 0;
-  flightGearSocket = 0;
   runID_postfix = 0;
   Type = otNone;
   SubSystems = 0;
@@ -153,7 +149,6 @@ FGOutput::FGOutput(FGFDMExec* fdmex) : FGModel(fdmex)
 FGOutput::~FGOutput()
 {
   delete socket;
-  delete flightGearSocket;
   OutputProperties.clear();
   Debug(1);
 }
@@ -162,8 +157,6 @@ FGOutput::~FGOutput()
 
 bool FGOutput::InitModel(void)
 {
-  if (!FGModel::InitModel()) return false;
-
   if (Filename.size() > 0 && StartNewFile) {
     ostringstream buf;
     string::size_type dot = BaseFilename.find_last_of('.');
@@ -183,28 +176,35 @@ bool FGOutput::InitModel(void)
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-bool FGOutput::Run(void)
+bool FGOutput::Run(bool Holding)
 {
-  if (FGModel::Run()) return true;
+  if (FGModel::Run(Holding)) return true;
 
-  if (enabled && !FDMExec->IntegrationSuspended()&& !FDMExec->Holding()) {
+  if (enabled && !FDMExec->IntegrationSuspended() && !Holding) {
     RunPreFunctions();
-    if (Type == otSocket) {
-      SocketOutput();
-    } else if (Type == otFlightGear) {
-      FlightGearSocketOutput();
-    } else if (Type == otCSV || Type == otTab) {
-      DelimitedOutput(Filename);
-    } else if (Type == otTerminal) {
-      // Not done yet
-    } else if (Type == otNone) {
-      // Do nothing
-    } else {
-      // Not a valid type of output
-    }
+    Print();
     RunPostFunctions();
   }
   return false;
+}
+
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+void FGOutput::Print(void)
+{
+  if (Type == otSocket) {
+    SocketOutput();
+  } else if (Type == otFlightGear) {
+    FlightGearSocketOutput();
+  } else if (Type == otCSV || Type == otTab) {
+    DelimitedOutput(Filename);
+  } else if (Type == otTerminal) {
+    // Not done yet
+  } else if (Type == otNone) {
+    // Do nothing
+  } else {
+    // Not a valid type of output
+  }
 }
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -231,8 +231,30 @@ void FGOutput::SetType(const string& type)
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+void FGOutput::SetProtocol(const string& protocol)
+{
+  if (protocol == "UDP") Protocol = FGfdmSocket::ptUDP;
+  else if (protocol == "TCP") Protocol = FGfdmSocket::ptTCP;
+  else Protocol = FGfdmSocket::ptTCP; // Default to TCP
+}
+
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 void FGOutput::DelimitedOutput(const string& fname)
 {
+  const FGAerodynamics* Aerodynamics = FDMExec->GetAerodynamics();
+  const FGAuxiliary* Auxiliary = FDMExec->GetAuxiliary();
+  const FGAircraft* Aircraft = FDMExec->GetAircraft();
+  const FGAtmosphere* Atmosphere = FDMExec->GetAtmosphere();
+  const FGPropulsion* Propulsion = FDMExec->GetPropulsion();
+  const FGMassBalance* MassBalance = FDMExec->GetMassBalance();
+  const FGPropagate* Propagate = FDMExec->GetPropagate();
+  const FGFCS* FCS = FDMExec->GetFCS();
+  const FGInertial* Inertial = FDMExec->GetInertial();
+  const FGGroundReactions* GroundReactions = FDMExec->GetGroundReactions();
+  const FGExternalReactions* ExternalReactions = FDMExec->GetExternalReactions();
+  const FGBuoyantForces* BuoyantForces = FDMExec->GetBuoyantForces();
+
   streambuf* buffer;
   string scratch = "";
 
@@ -279,6 +301,7 @@ void FGOutput::DelimitedOutput(const string& fname)
       outstream << "UBody" + delimeter + "VBody" + delimeter + "WBody" + delimeter;
       outstream << "Aero V_{X Body} (ft/s)" + delimeter + "Aero V_{Y Body} (ft/s)" + delimeter + "Aero V_{Z Body} (ft/s)" + delimeter;
       outstream << "V_{X_{inertial}} (ft/s)" + delimeter + "V_{Y_{inertial}} (ft/s)" + delimeter + "V_{Z_{inertial}} (ft/s)" + delimeter;
+      outstream << "V_{X_{ecef}} (ft/s)" + delimeter + "V_{Y_{ecef}} (ft/s)" + delimeter + "V_{Z_{ecef}} (ft/s)" + delimeter;
       outstream << "V_{North} (ft/s)" + delimeter + "V_{East} (ft/s)" + delimeter + "V_{Down} (ft/s)";
     }
     if (SubSystems & ssForces) {
@@ -342,8 +365,8 @@ void FGOutput::DelimitedOutput(const string& fname)
       outstream << "Distance AGL (ft)" + delimeter;
       outstream << "Terrain Elevation (ft)";
     }
-    if (SubSystems & ssCoefficients) {
-      scratch = Aerodynamics->GetCoefficientStrings(delimeter);
+    if (SubSystems & ssAeroFunctions) {
+      scratch = Aerodynamics->GetAeroFunctionStrings(delimeter);
       if (scratch.length() != 0) outstream << delimeter << scratch;
     }
     if (SubSystems & ssFCS) {
@@ -398,6 +421,7 @@ void FGOutput::DelimitedOutput(const string& fname)
     outstream << setprecision(12) << Propagate->GetUVW().Dump(delimeter) << delimeter;
     outstream << Auxiliary->GetAeroUVW().Dump(delimeter) << delimeter;
     outstream << Propagate->GetInertialVelocity().Dump(delimeter) << delimeter;
+    outstream << Propagate->GetECEFVelocity().Dump(delimeter) << delimeter;
     outstream << Propagate->GetVel().Dump(delimeter);
     outstream.precision(10);
   }
@@ -458,8 +482,8 @@ void FGOutput::DelimitedOutput(const string& fname)
     outstream << Propagate->GetTerrainElevation();
     outstream.precision(10);
   }
-  if (SubSystems & ssCoefficients) {
-    scratch = Aerodynamics->GetCoefficientValues(delimeter);
+  if (SubSystems & ssAeroFunctions) {
+    scratch = Aerodynamics->GetAeroFunctionValues(delimeter);
     if (scratch.length() != 0) outstream << delimeter << scratch;
   }
   if (SubSystems & ssFCS) {
@@ -489,6 +513,13 @@ void FGOutput::DelimitedOutput(const string& fname)
 
 void FGOutput::SocketDataFill(FGNetFDM* net)
 {
+  const FGAerodynamics* Aerodynamics = FDMExec->GetAerodynamics();
+  const FGAuxiliary* Auxiliary = FDMExec->GetAuxiliary();
+  const FGPropulsion* Propulsion = FDMExec->GetPropulsion();
+  const FGMassBalance* MassBalance = FDMExec->GetMassBalance();
+  const FGPropagate* Propagate = FDMExec->GetPropagate();
+  const FGFCS* FCS = FDMExec->GetFCS();
+  const FGGroundReactions* GroundReactions = FDMExec->GetGroundReactions();
     unsigned int i;
 
     // Version
@@ -566,14 +597,12 @@ void FGOutput::SocketDataFill(FGNetFDM* net)
        }
     }
 
-
     // Consumables
     net->num_tanks = Propulsion->GetNumTanks();   // Max number of fuel tanks
 
     for (i=0; i<net->num_tanks; i++) {
        net->fuel_quantity[i] = (float)(((FGTank *)Propulsion->GetTank(i))->GetContents());
     }
-
 
     // Gear status
     net->num_wheels  = GroundReactions->GetNumGearUnits();
@@ -588,12 +617,10 @@ void FGOutput::SocketDataFill(FGNetFDM* net)
        net->gear_compression[i] = (float)(GroundReactions->GetGearUnit(i)->GetCompLen());
     }
 
-
     // Environment
-    net->cur_time    = (long int)1234567890;	// Friday, Feb 13, 2009, 23:31:30 UTC (not processed by FGFS anyway)
+    net->cur_time    = (long int)1234567890;    // Friday, Feb 13, 2009, 23:31:30 UTC (not processed by FGFS anyway)
     net->warp        = 0;                       // offset in seconds to unix time
     net->visibility  = 25000.0;                 // visibility in meters (for env. effects)
-
 
     // Control surface positions (normalized values)
     net->elevator          = (float)(FCS->GetDePos(ofNorm));    // Norm Elevator Pos, --
@@ -606,7 +633,6 @@ void FGOutput::SocketDataFill(FGNetFDM* net)
     net->nose_wheel        = (float)(FCS->GetDrPos(ofNorm));    // *** FIX ***  Using Rudder Pos for NWS, --
     net->speedbrake        = (float)(FCS->GetDsbPos(ofNorm));   // Norm Speedbrake Pos, --
     net->spoilers          = (float)(FCS->GetDspPos(ofNorm));   // Norm Spoiler Pos, --
-
 
     // Convert the net buffer to network format
     if ( isLittleEndian ) {
@@ -691,18 +717,27 @@ void FGOutput::FlightGearSocketOutput(void)
 {
   int length = sizeof(fgSockBuf);
 
-
-  if (flightGearSocket == NULL) return;
-  if (!flightGearSocket->GetConnectStatus()) return;
+  if (socket == NULL) return;
+  if (!socket->GetConnectStatus()) return;
 
   SocketDataFill(&fgSockBuf);
-  flightGearSocket->Send((char *)&fgSockBuf, length);
+  socket->Send((char *)&fgSockBuf, length);
 }
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 void FGOutput::SocketOutput(void)
 {
+  const FGAerodynamics* Aerodynamics = FDMExec->GetAerodynamics();
+  const FGAuxiliary* Auxiliary = FDMExec->GetAuxiliary();
+  const FGPropulsion* Propulsion = FDMExec->GetPropulsion();
+  const FGMassBalance* MassBalance = FDMExec->GetMassBalance();
+  const FGPropagate* Propagate = FDMExec->GetPropagate();
+  const FGFCS* FCS = FDMExec->GetFCS();
+  const FGAtmosphere* Atmosphere = FDMExec->GetAtmosphere();
+  const FGAircraft* Aircraft = FDMExec->GetAircraft();
+  const FGGroundReactions* GroundReactions = FDMExec->GetGroundReactions();
+
   string asciiData, scratch;
 
   if (socket == NULL) return;
@@ -798,8 +833,8 @@ void FGOutput::SocketOutput(void)
         socket->Append("Latitude (deg)");
         socket->Append("Longitude (deg)");
     }
-    if (SubSystems & ssCoefficients) {
-      scratch = Aerodynamics->GetCoefficientStrings(",");
+    if (SubSystems & ssAeroFunctions) {
+      scratch = Aerodynamics->GetAeroFunctionStrings(",");
       if (scratch.length() != 0) socket->Append(scratch);
     }
     if (SubSystems & ssFCS) {
@@ -904,8 +939,8 @@ void FGOutput::SocketOutput(void)
     socket->Append(Propagate->GetLocation().GetLatitudeDeg());
     socket->Append(Propagate->GetLocation().GetLongitudeDeg());
   }
-  if (SubSystems & ssCoefficients) {
-    scratch = Aerodynamics->GetCoefficientValues(",");
+  if (SubSystems & ssAeroFunctions) {
+    scratch = Aerodynamics->GetAeroFunctionValues(",");
     if (scratch.length() != 0) socket->Append(scratch);
   }
   if (SubSystems & ssFCS) {
@@ -944,11 +979,9 @@ void FGOutput::SocketStatusOutput(const string& out_str)
 
 bool FGOutput::Load(Element* element)
 {
-  string type="", parameter="";
+  string parameter="";
   string name="";
-  string protocol="tcp";
-  int OutRate = 0;
-  string property;
+  double OutRate = 0.0;
   unsigned int port;
   Element *property_element;
 
@@ -967,24 +1000,17 @@ bool FGOutput::Load(Element* element)
   if (!document) return false;
 
   name = FDMExec->GetRootDir() + document->GetAttributeValue("name");
-  type = document->GetAttributeValue("type");
-  SetType(type);
-  if (!document->GetAttributeValue("port").empty() && type == string("SOCKET")) {
-    port = atoi(document->GetAttributeValue("port").c_str());
-    socket = new FGfdmSocket(name, port);
-  } else if (!document->GetAttributeValue("port").empty() && type == string("FLIGHTGEAR")) {
-    port = atoi(document->GetAttributeValue("port").c_str());
-    if (!document->GetAttributeValue("protocol").empty())
-       protocol = document->GetAttributeValue("protocol");
-    if (protocol == "udp")
-       flightGearSocket = new FGfdmSocket(name, port, FGfdmSocket::ptUDP);  // create udp socket
-    else
-       flightGearSocket = new FGfdmSocket(name, port, FGfdmSocket::ptTCP);  // create tcp socket (default)
+  SetType(document->GetAttributeValue("type"));
+  Port = document->GetAttributeValue("port");
+  if (!Port.empty() && (Type == otSocket || Type == otFlightGear)) {
+    port = atoi(Port.c_str());
+    SetProtocol(document->GetAttributeValue("protocol"));
+    socket = new FGfdmSocket(name, port, Protocol);
   } else {
     BaseFilename = Filename = name;
   }
   if (!document->GetAttributeValue("rate").empty()) {
-    OutRate = (int)document->GetAttributeValueAsNumber("rate");
+    OutRate = document->GetAttributeValueAsNumber("rate");
   } else {
     OutRate = 1;
   }
@@ -1008,7 +1034,7 @@ bool FGOutput::Load(Element* element)
   if (document->FindElementValue("position") == string("ON"))
     SubSystems += ssPropagate;
   if (document->FindElementValue("coefficients") == string("ON"))
-    SubSystems += ssCoefficients;
+    SubSystems += ssAeroFunctions;
   if (document->FindElementValue("ground_reactions") == string("ON"))
     SubSystems += ssGroundReactions;
   if (document->FindElementValue("fcs") == string("ON"))
@@ -1039,7 +1065,7 @@ bool FGOutput::Load(Element* element)
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-void FGOutput::SetRate(int rtHz)
+void FGOutput::SetRate(double rtHz)
 {
   rtHz = rtHz>1000?1000:(rtHz<0?0:rtHz);
   if (rtHz > 0) {
@@ -1109,7 +1135,7 @@ void FGOutput::Debug(int from)
       if (SubSystems & ssMoments)         cout << "    Moments parameters logged" << endl;
       if (SubSystems & ssAtmosphere)      cout << "    Atmosphere parameters logged" << endl;
       if (SubSystems & ssMassProps)       cout << "    Mass parameters logged" << endl;
-      if (SubSystems & ssCoefficients)    cout << "    Coefficient parameters logged" << endl;
+      if (SubSystems & ssAeroFunctions)    cout << "    Coefficient parameters logged" << endl;
       if (SubSystems & ssPropagate)       cout << "    Propagate parameters logged" << endl;
       if (SubSystems & ssGroundReactions) cout << "    Ground parameters logged" << endl;
       if (SubSystems & ssFCS)             cout << "    FCS parameters logged" << endl;

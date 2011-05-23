@@ -1,6 +1,14 @@
-aircraft_f22dir = ${pkgdatadir}/aircraft/f22
-aircraft_f22_DATA = \
+EXTRA_DIST = \
 	f22.xml \
-	yf22.xml \
-	README 
-EXTRA_DIST=$(aircraft_f22_DATA)
+	README
+
+aircraft = f22
+
+check-local:
+	-xmllint --noout --schema $(top_srcdir)/JSBSim.xsd \
+	--path $(top_srcdir)/aircraft/$(aircraft)  $(aircraft).xml
+	$(top_builddir)/src/JSBSim \
+	  --root=$(top_srcdir) \
+	  --catalog=$(aircraft) \
+	  1>/dev/null
+

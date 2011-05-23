@@ -5,7 +5,7 @@
 srcdir=src
 test -z "$srcdir" && srcdir=.
 
-PKG_NAME="jsbsim"
+PKG_NAME="JSBSim"
 ACLOCAL_FLAGS="-I . $ACLOCAL_FLAGS"
 
 OSTYPE=`uname -s`
@@ -113,6 +113,7 @@ do
 	echo "macros were not found"
 	exit 1
       }
+
       if grep "^AM_CONFIG_HEADER" configure.in >/dev/null; then
 	echo "Running autoheader..."
 	autoheader || { echo "**Error**: autoheader failed."; exit 1; }
@@ -144,3 +145,4 @@ if test x$NOCONFIGURE = x; then
 else
   echo Skipping configure process.
 fi
+

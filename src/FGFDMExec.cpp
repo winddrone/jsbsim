@@ -71,40 +71,17 @@ using namespace std;
 
 namespace JSBSim {
 
-static const char *IdSrc = "$Id: FGFDMExec.cpp,v 1.80 2010/08/21 22:56:10 jberndt Exp $";
+static const char *IdSrc = "$Id: FGFDMExec.cpp,v 1.95 2011/05/20 10:35:25 jberndt Exp $";
 static const char *IdHdr = ID_FDMEXEC;
-
-/*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-GLOBAL DECLARATIONS
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%*/
-
-unsigned int FGFDMExec::FDMctr = 0;
-FGPropertyManager* FGFDMExec::master=0;
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 CLASS IMPLEMENTATION
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%*/
 
-void checkTied ( FGPropertyManager *node )
-{
-  int N = node->nChildren();
-  string name;
-
-  for (int i=0; i<N; i++) {
-    if (node->getChild(i)->nChildren() ) {
-      checkTied( (FGPropertyManager*)node->getChild(i) );
-    }
-    if ( node->getChild(i)->isTied() ) {
-      name = ((FGPropertyManager*)node->getChild(i))->GetFullyQualifiedName();
-      node->Untie(name);
-    }
-  }
-}
-
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // Constructor
 
-FGFDMExec::FGFDMExec(FGPropertyManager* root) : Root(root)
+FGFDMExec::FGFDMExec(FGPropertyManager* root, unsigned int* fdmctr) : Root(root), FDMctr(fdmctr)
 {
 
   Frame           = 0;
@@ -133,26 +110,38 @@ FGFDMExec::FGFDMExec(FGPropertyManager* root) : Root(root)
   IsChild = false;
   holding = false;
   Terminate = false;
+  StandAlone = false;
 
   sim_time = 0.0;
   dT = 1.0/120.0; // a default timestep size. This is needed for when JSBSim is
                   // run in standalone mode with no initialization file.
 
-  IdFDM = FDMctr; // The main (parent) JSBSim instance is always the "zeroth"
-  FDMctr++;       // instance. "child" instances are loaded last.
+  AircraftPath = "aircraft";
+  EnginePath = "engine";
+  SystemsPath = "systems";
 
   try {
     char* num = getenv("JSBSIM_DEBUG");
     if (num) debug_lvl = atoi(num); // set debug level
-  } catch (...) {               // if error set to 1
+  } catch (...) {                   // if error set to 1
     debug_lvl = 1;
   }
 
-  if (Root == 0) {
-    if (master == 0)
-      master = new FGPropertyManager;
-    Root = master;
+  if (Root == 0) {                 // Then this is the root FDM
+    Root = new FGPropertyManager;  // Create the property manager
+    StandAlone = true;
   }
+
+  if (FDMctr == 0) {
+    FDMctr = new unsigned int;     // Create and initialize the child FDM counter
+    (*FDMctr) = 0;
+  }
+
+  // Store this FDM's ID
+  IdFDM = (*FDMctr); // The main (parent) JSBSim instance is always the "zeroth"
+                                                                      
+  // Prepare FDMctr for the next child FDM id
+  (*FDMctr)++;       // instance. "child" instances are loaded last.
 
   instance = Root->GetNode("/fdm/jsbsim",IdFDM,true);
   Debug(0);
@@ -169,12 +158,13 @@ FGFDMExec::FGFDMExec(FGPropertyManager* root) : Root(root)
 
   Constructing = true;
   typedef int (FGFDMExec::*iPMF)(void) const;
-//  instance->Tie("simulation/do_trim_analysis", this, (iPMF)0, &FGFDMExec::DoTrimAnalysis);
-  instance->Tie("simulation/do_simple_trim", this, (iPMF)0, &FGFDMExec::DoTrim);
-  instance->Tie("simulation/reset", this, (iPMF)0, &FGFDMExec::ResetToInitialConditions);
+//  instance->Tie("simulation/do_trim_analysis", this, (iPMF)0, &FGFDMExec::DoTrimAnalysis, false);
+  instance->Tie("simulation/do_simple_trim", this, (iPMF)0, &FGFDMExec::DoTrim, false);
+  instance->Tie("simulation/reset", this, (iPMF)0, &FGFDMExec::ResetToInitialConditions, false);
   instance->Tie("simulation/terminate", (int *)&Terminate);
   instance->Tie("simulation/sim-time-sec", this, &FGFDMExec::GetSimTime);
   instance->Tie("simulation/jsbsim-debug", this, &FGFDMExec::GetDebugLevel, &FGFDMExec::SetDebugLevel);
+  instance->Tie("simulation/frame", (int *)&Frame, false);
 
   Constructing = false;
 }
@@ -184,9 +174,20 @@ FGFDMExec::FGFDMExec(FGPropertyManager* root) : Root(root)
 FGFDMExec::~FGFDMExec()
 {
   try {
-    checkTied( instance );
+    Unbind();
     DeAllocate();
-    if (Root == 0)  delete master;
+    
+    if (IdFDM == 0) { // Meaning this is no child FDM
+      if(Root != 0) {
+         if(StandAlone)
+            delete Root;
+         Root = 0;
+      }
+      if(FDMctr != 0) {
+         delete FDMctr;
+         FDMctr = 0;
+      }
+    }
   } catch ( string msg ) {
     cout << "Caught error: " << msg << endl;
   }
@@ -227,19 +228,19 @@ bool FGFDMExec::Allocate(void)
   // Schedule a model. The second arg (the integer) is the pass number. For
   // instance, the atmosphere model could get executed every fifth pass it is called.
   
-  Schedule(Input,           1);
-  Schedule(Atmosphere,      1);
-  Schedule(FCS,             1);
-  Schedule(Propulsion,      1);
-  Schedule(MassBalance,     1);
-  Schedule(Aerodynamics,    1);
-  Schedule(Inertial,        1);
-  Schedule(GroundReactions, 1);
-  Schedule(ExternalReactions, 1);
-  Schedule(BuoyantForces,   1);
-  Schedule(Aircraft,        1);
-  Schedule(Propagate,       1);
-  Schedule(Auxiliary,       1);
+  Schedule(Input,           1);   // Input model is Models[0]
+  Schedule(Atmosphere,      1);   // Input model is Models[1]
+  Schedule(FCS,             1);   // Input model is Models[2]
+  Schedule(Propulsion,      1);   // Input model is Models[3]
+  Schedule(MassBalance,     1);   // Input model is Models[4]
+  Schedule(Aerodynamics,    1);   // Input model is Models[5]
+  Schedule(Inertial,        1);   // Input model is Models[6]
+  Schedule(GroundReactions, 1);   // Input model is Models[7]
+  Schedule(ExternalReactions, 1); // Input model is Models[8]
+  Schedule(BuoyantForces,   1);   // Input model is Models[9]
+  Schedule(Aircraft,        1);   // Input model is Models[10]
+  Schedule(Propagate,       1);   // Input model is Models[11]
+  Schedule(Auxiliary,       1);   // Input model is Models[12]
 
   // Initialize models so they can communicate with each other
 
@@ -328,10 +329,9 @@ bool FGFDMExec::Run(void)
   if (Script != 0 && !IntegrationSuspended()) success = Script->RunScript();
 
   vector <FGModel*>::iterator it;
-  for (it = Models.begin(); it != Models.end(); ++it) (*it)->Run();
+  for (it = Models.begin(); it != Models.end(); ++it) (*it)->Run(holding);
 
-  Frame++;
-  if (!Holding()) IncrTime();
+  IncrTime();
   if (Terminate) success = false;
 
   return (success);
@@ -354,35 +354,16 @@ bool FGFDMExec::RunIC(void)
 
 void FGFDMExec::Initialize(FGInitialCondition *FGIC)
 {
+  Setsim_time(0.0);
+
   Propagate->SetInitialState( FGIC );
 
-  Atmosphere->Run();
+  Atmosphere->Run(false);
   Atmosphere->SetWindNED( FGIC->GetWindNFpsIC(),
                           FGIC->GetWindEFpsIC(),
                           FGIC->GetWindDFpsIC() );
 
-  FGColumnVector3 vAeroUVW;
-  vAeroUVW = Propagate->GetUVW() + Propagate->GetTl2b()*Atmosphere->GetTotalWindNED();
-
-  double alpha, beta;
-  if (vAeroUVW(eW) != 0.0)
-    alpha = vAeroUVW(eU)*vAeroUVW(eU) > 0.0 ? atan2(vAeroUVW(eW), vAeroUVW(eU)) : 0.0;
-  else
-    alpha = 0.0;
-  if (vAeroUVW(eV) != 0.0)
-    beta = vAeroUVW(eU)*vAeroUVW(eU)+vAeroUVW(eW)*vAeroUVW(eW) > 0.0 ? atan2(vAeroUVW(eV), (fabs(vAeroUVW(eU))/vAeroUVW(eU))*sqrt(vAeroUVW(eU)*vAeroUVW(eU) + vAeroUVW(eW)*vAeroUVW(eW))) : 0.0;
-  else
-    beta = 0.0;
-
-  Auxiliary->SetAB(alpha, beta);
-
-  double Vt = vAeroUVW.Magnitude();
-  Auxiliary->SetVt(Vt);
-
-  Auxiliary->SetMach(Vt/Atmosphere->GetSoundSpeed());
-
-  double qbar = 0.5*Vt*Vt*Atmosphere->GetDensity();
-  Auxiliary->Setqbar(qbar);
+  Auxiliary->Run(false);
 }
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -439,7 +420,7 @@ vector <string> FGFDMExec::EnumerateFDMs(void)
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-bool FGFDMExec::LoadScript(string script, double deltaT)
+bool FGFDMExec::LoadScript(const string& script, double deltaT)
 {
   bool result;
 
@@ -451,8 +432,8 @@ bool FGFDMExec::LoadScript(string script, double deltaT)
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-bool FGFDMExec::LoadModel(string AircraftPath, string EnginePath, string SystemsPath,
-                string model, bool addModelToPath)
+bool FGFDMExec::LoadModel(const string& AircraftPath, const string& EnginePath, const string& SystemsPath,
+                const string& model, bool addModelToPath)
 {
   FGFDMExec::AircraftPath = RootDir + AircraftPath;
   FGFDMExec::EnginePath = RootDir + EnginePath;
@@ -463,7 +444,7 @@ bool FGFDMExec::LoadModel(string AircraftPath, string EnginePath, string Systems
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-bool FGFDMExec::LoadModel(string model, bool addModelToPath)
+bool FGFDMExec::LoadModel(const string& model, bool addModelToPath)
 {
   string token;
   string aircraftCfgFileName;
@@ -633,7 +614,9 @@ bool FGFDMExec::LoadModel(string model, bool addModelToPath)
 
     // Process the output element[s]. This element is OPTIONAL, and there may be more than one.
     unsigned int idx=0;
-    typedef int (FGOutput::*iOPMF)(void) const;
+    typedef double (FGOutput::*iOPMF)(void) const;
+    typedef int (FGFDMExec::*iOPV)(void) const;
+    typedef void (FGFDMExec::*vOPI)(int) const;
     element = document->FindElement("output");
     while (element) {
       if (debug_lvl > 0) cout << endl << "  Output data set: " << idx << "  ";
@@ -647,7 +630,8 @@ bool FGFDMExec::LoadModel(string model, bool addModelToPath)
       } else {
         Outputs.push_back(Output);
         string outputProp = CreateIndexedPropertyName("simulation/output",idx);
-        instance->Tie(outputProp+"/log_rate_hz", Output, (iOPMF)0, &FGOutput::SetRate);
+        instance->Tie(outputProp+"/log_rate_hz", Output, (iOPMF)0, &FGOutput::SetRate, false);
+        instance->Tie("simulation/force-output", this, (iOPV)0, &FGFDMExec::ForceOutput, false);
         idx++;
       }
       element = document->FindNextElement("output");
@@ -666,7 +650,7 @@ bool FGFDMExec::LoadModel(string model, bool addModelToPath)
     modelLoaded = true;
 
     if (debug_lvl > 0) {
-      MassBalance->Run(); // Update all mass properties for the report.
+      MassBalance->Run(false); // Update all mass properties for the report.
       MassBalance->GetMassPropertiesReport();
 
       cout << endl << fgblue << highint
@@ -681,15 +665,6 @@ bool FGFDMExec::LoadModel(string model, bool addModelToPath)
     cerr << fgred
          << "  JSBSim failed to open the configuration file: " << aircraftCfgFileName
          << fgdef << endl;
-  }
-
-  // Late bind previously undefined FCS inputs.
-  try {
-    FCS->LateBind();
-  } catch (string prop) {
-    cerr << endl << fgred << "  Could not late bind property " << prop 
-         << ". Aborting." << endl;
-    result = false;
   }
 
   if (result) {
@@ -730,7 +705,7 @@ void FGFDMExec::BuildPropertyCatalog(struct PropertyCatalogStructure* pcs)
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-string FGFDMExec::QueryPropertyCatalog(string in)
+string FGFDMExec::QueryPropertyCatalog(const string& in)
 {
   string results="";
   for (unsigned i=0; i<PropertyCatalog.size(); i++) {
@@ -852,7 +827,7 @@ bool FGFDMExec::ReadChild(Element* el)
 
   struct childData* child = new childData;
 
-  child->exec = new FGFDMExec();
+  child->exec = new FGFDMExec(Root, FDMctr);
   child->exec->SetChild(true);
 
   string childAircraft = el->GetAttributeValue("name");
@@ -922,7 +897,14 @@ void FGFDMExec::EnableOutput(void)
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-bool FGFDMExec::SetOutputDirectives(string fname)
+void FGFDMExec::ForceOutput(int idx)
+{
+  if (idx >= 0 && idx < Outputs.size()) Outputs[idx]->Print();
+}
+	
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+bool FGFDMExec::SetOutputDirectives(const string& fname)
 {
   bool result;
 
@@ -934,9 +916,9 @@ bool FGFDMExec::SetOutputDirectives(string fname)
 
   if (result) {
     Outputs.push_back(Output);
-    typedef int (FGOutput::*iOPMF)(void) const;
+    typedef double (FGOutput::*iOPMF)(void) const;
     string outputProp = CreateIndexedPropertyName("simulation/output",Outputs.size()-1);
-    instance->Tie(outputProp+"/log_rate_hz", Output, (iOPMF)0, &FGOutput::SetRate);
+    instance->Tie(outputProp+"/log_rate_hz", Output, (iOPMF)0, &FGOutput::SetRate, false);
   }
 
   return result;
@@ -962,38 +944,6 @@ void FGFDMExec::DoTrim(int mode)
 }
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-/*
-void FGFDMExec::DoTrimAnalysis(int mode)
-{
-  double saved_time;
-  if (Constructing) return;
-
-  if (mode < 0 || mode > JSBSim::taNone) {
-    cerr << endl << "Illegal trimming mode!" << endl << endl;
-    return;
-  }
-  saved_time = sim_time;
-
-  FGTrimAnalysis trimAnalysis(this, (JSBSim::TrimAnalysisMode)mode);
-
-  if ( !trimAnalysis.Load(IC->GetInitFile(), false) ) {
-    cerr << "A problem occurred with trim configuration file " << trimAnalysis.Load(IC->GetInitFile()) << endl;
-    exit(-1);
-  }
-
-  bool result = trimAnalysis.DoTrim();
-
-  if ( !result ) cerr << endl << "Trim Failed" << endl << endl;
-
-  trimAnalysis.Report();
-  Setsim_time(saved_time);
-
-  EnableOutput();
-  cout << "\nOutput: " << GetOutputFileName() << endl;
-
-}
-*/
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 void FGFDMExec::UseAtmosphereMSIS(void)
 {
@@ -1003,6 +953,8 @@ void FGFDMExec::UseAtmosphereMSIS(void)
     cerr << fgred << "MSIS Atmosphere model init failed" << fgdef << endl;
     Error+=1;
   }
+  Models[1] = Atmosphere; // Reassign the atmosphere model that has already been scheduled
+                          // to the new atmosphere.
   delete oldAtmosphere;
 }
 
@@ -1017,6 +969,8 @@ void FGFDMExec::UseAtmosphereMars(void)
     cerr << fgred << "Mars Atmosphere model init failed" << fgdef << endl;
     Error+=1;
   }
+  Models[1] = Atmosphere; // Reassign the atmosphere model that has already been scheduled
+                          // to the new atmosphere.
   delete oldAtmosphere;
 */
 }

@@ -67,11 +67,11 @@ int main (int argc, char const* argv[])
     constraints.velocity = 500;
     std::string aircraft="f16";
     double rtol = std::numeric_limits<float>::epsilon();
-    double abstol = 1e-2;//std::numeric_limits<double>::epsilon();
+    double abstol = 1e-5;//std::numeric_limits<double>::epsilon();
     double speed = 1.1; // > 1
 	double random = 0; // random scale factor added to all simplex calcs
     int iterMax = 2000;
-    bool showConvergeStatus = false;
+    bool showConvergeStatus = true;
     bool pause = false;
     bool showSimplex = false;
     bool variablePropPitch = false;
@@ -163,24 +163,24 @@ int main (int argc, char const* argv[])
 
     lowerBound[0] = 0; //throttle
     lowerBound[1] = -1; // elevator
-    lowerBound[2] = -90*M_PI/180; // alpha
+    lowerBound[2] = -5*M_PI/180; // alpha
     lowerBound[3] = -1; // aileron
     lowerBound[4] = -1; // rudder
-    lowerBound[5] = -90*M_PI/180; // beta
+    lowerBound[5] = -5*M_PI/180; // beta
 
     upperBound[0] = 1; //throttle
     upperBound[1] = 1; // elevator
-    upperBound[2] = 90*M_PI/180; // alpha
+    upperBound[2] = 5*M_PI/180; // alpha
     upperBound[3] = 1; // aileron
     upperBound[4] = 1; // rudder
-    upperBound[5] = 90*M_PI/180; // beta
+    upperBound[5] = 5*M_PI/180; // beta
 
-    initialStepSize[0] = 0.2; //throttle
-    initialStepSize[1] = 0.1; // elevator
-    initialStepSize[2] = 0.1; // alpha
-    initialStepSize[3] = 0.1; // aileron
-    initialStepSize[4] = 0.1; // rudder
-    initialStepSize[5] = 0.1; // beta
+    initialStepSize[0] = 0.02; //throttle
+    initialStepSize[1] = 0.01; // elevator
+    initialStepSize[2] = 0.01; // alpha
+    initialStepSize[3] = 0.01; // aileron
+    initialStepSize[4] = 0.01; // rudder
+    initialStepSize[5] = 0.01; // beta
 
     initialGuess[0] = 0.5; // throttle
     initialGuess[1] = 0; // elevator

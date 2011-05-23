@@ -59,7 +59,7 @@ using namespace std;
 
 namespace JSBSim {
 
-static const char *IdSrc = "$Id: FGAuxiliary.cpp,v 1.42 2010/07/27 23:18:19 jberndt Exp $";
+static const char *IdSrc = "$Id: FGAuxiliary.cpp,v 1.49 2011/05/20 03:18:36 jberndt Exp $";
 static const char *IdHdr = ID_AUXILIARY;
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -70,13 +70,14 @@ CLASS IMPLEMENTATION
 FGAuxiliary::FGAuxiliary(FGFDMExec* fdmex) : FGModel(fdmex)
 {
   Name = "FGAuxiliary";
-  vcas = veas = pt = tat = 0;
-  psl = rhosl = 1;
-  qbar = 0;
-  qbarUW = 0.0;
-  qbarUV = 0.0;
-  Re = 0.0;
-  Mach = 0.0;
+  pt = p = psl = 1.0;
+  rho = rhosl = 1.0;
+  tat = sat = 1.0;
+  tatc = RankineToCelsius(tat);
+
+  vcas = veas = 0.0;
+  qbar = qbarUW = qbarUV = 0.0;
+  Mach = MachU = 0.0;
   alpha = beta = 0.0;
   adot = bdot = 0.0;
   gamma = Vt = Vground = 0.0;
@@ -84,13 +85,19 @@ FGAuxiliary::FGAuxiliary(FGFDMExec* fdmex) : FGModel(fdmex)
   day_of_year = 1;
   seconds_in_day = 0.0;
   hoverbmac = hoverbcg = 0.0;
-  tatc = RankineToCelsius(tat);
+  Re = 0.0;
+  Nz = 0.0;
+  lon_relative_position = lat_relative_position = relative_position = 0.0;
 
   vPilotAccel.InitMatrix();
   vPilotAccelN.InitMatrix();
   vToEyePt.InitMatrix();
+  vAeroUVW.InitMatrix();
   vAeroPQR.InitMatrix();
+  vMachUVW.InitMatrix();
+  vEuler.InitMatrix();
   vEulerRates.InitMatrix();
+  vAircraftAccel.InitMatrix();
 
   bind();
 
@@ -101,14 +108,16 @@ FGAuxiliary::FGAuxiliary(FGFDMExec* fdmex) : FGModel(fdmex)
 
 bool FGAuxiliary::InitModel(void)
 {
-  if (!FGModel::InitModel()) return false;
+  pt = p = FDMExec->GetAtmosphere()->GetPressure();
+  rho = FDMExec->GetAtmosphere()->GetDensity();
+  rhosl = FDMExec->GetAtmosphere()->GetDensitySL();
+  psl = FDMExec->GetAtmosphere()->GetPressureSL();
+  tat = sat = FDMExec->GetAtmosphere()->GetTemperature();
+  tatc = RankineToCelsius(tat);
 
-  vcas = veas = pt = tat = 0;
-  psl = rhosl = 1;
-  qbar = 0;
-  qbarUW = 0.0;
-  qbarUV = 0.0;
-  Mach = 0.0;
+  vcas = veas = 0.0;
+  qbar = qbarUW = qbarUV = 0.0;
+  Mach = MachU = 0.0;
   alpha = beta = 0.0;
   adot = bdot = 0.0;
   gamma = Vt = Vground = 0.0;
@@ -116,12 +125,19 @@ bool FGAuxiliary::InitModel(void)
   day_of_year = 1;
   seconds_in_day = 0.0;
   hoverbmac = hoverbcg = 0.0;
+  Re = 0.0;
+  Nz = 0.0;
+  lon_relative_position = lat_relative_position = relative_position = 0.0;
 
   vPilotAccel.InitMatrix();
   vPilotAccelN.InitMatrix();
   vToEyePt.InitMatrix();
+  vAeroUVW.InitMatrix();
   vAeroPQR.InitMatrix();
+  vMachUVW.InitMatrix();
+  vEuler.InitMatrix();
   vEulerRates.InitMatrix();
+  vAircraftAccel.InitMatrix();
 
   return true;
 }
@@ -135,31 +151,38 @@ FGAuxiliary::~FGAuxiliary()
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-bool FGAuxiliary::Run()
+bool FGAuxiliary::Run(bool Holding)
 {
   double A,B,D;
 
-  if (FGModel::Run()) return true; // return true if error returned from base class
-  if (FDMExec->Holding()) return false;
+  if (FGModel::Run(Holding)) return true; // return true if error returned from base class
+  if (Holding) return false;
 
   RunPreFunctions();
 
-  const FGColumnVector3& vPQR = Propagate->GetPQR();
-  const FGColumnVector3& vUVW = Propagate->GetUVW();
-  const FGColumnVector3& vUVWdot = Propagate->GetUVWdot();
-  const FGColumnVector3& vVel = Propagate->GetVel();
+  const double density = FDMExec->GetAtmosphere()->GetDensity();
+  const double soundspeed = FDMExec->GetAtmosphere()->GetSoundSpeed();
+  const double DistanceAGL = FDMExec->GetPropagate()->GetDistanceAGL();
+  const double wingspan = FDMExec->GetAircraft()->GetWingSpan();
+  const FGMatrix33& Tl2b = FDMExec->GetPropagate()->GetTl2b();
+  const FGMatrix33& Tb2l = FDMExec->GetPropagate()->GetTb2l();
 
-  p = Atmosphere->GetPressure();
-  rhosl = Atmosphere->GetDensitySL();
-  psl = Atmosphere->GetPressureSL();
-  sat = Atmosphere->GetTemperature();
+  const FGColumnVector3& vPQR = FDMExec->GetPropagate()->GetPQR();
+  const FGColumnVector3& vUVW = FDMExec->GetPropagate()->GetUVW();
+  const FGColumnVector3& vUVWdot = FDMExec->GetPropagate()->GetUVWdot();
+  const FGColumnVector3& vVel = FDMExec->GetPropagate()->GetVel();
+
+  p = FDMExec->GetAtmosphere()->GetPressure();
+  rhosl = FDMExec->GetAtmosphere()->GetDensitySL();
+  psl = FDMExec->GetAtmosphere()->GetPressureSL();
+  sat = FDMExec->GetAtmosphere()->GetTemperature();
 
 // Rotation
 
-  double cTht = Propagate->GetCosEuler(eTht);
-  double sTht = Propagate->GetSinEuler(eTht);
-  double cPhi = Propagate->GetCosEuler(ePhi);
-  double sPhi = Propagate->GetSinEuler(ePhi);
+  double cTht = FDMExec->GetPropagate()->GetCosEuler(eTht);
+  double sTht = FDMExec->GetPropagate()->GetSinEuler(eTht);
+  double cPhi = FDMExec->GetPropagate()->GetCosEuler(ePhi);
+  double sPhi = FDMExec->GetPropagate()->GetSinEuler(ePhi);
 
   vEulerRates(eTht) = vPQR(eQ)*cPhi - vPQR(eR)*sPhi;
   if (cTht != 0.0) {
@@ -168,44 +191,40 @@ bool FGAuxiliary::Run()
   }
 
 // Combine the wind speed with aircraft speed to obtain wind relative speed
-  FGColumnVector3 wind = Propagate->GetTl2b()*Atmosphere->GetTotalWindNED();
-  vAeroPQR = vPQR - Atmosphere->GetTurbPQR();
+  FGColumnVector3 wind = Tl2b*FDMExec->GetAtmosphere()->GetTotalWindNED();
+  vAeroPQR = vPQR - FDMExec->GetAtmosphere()->GetTurbPQR();
   vAeroUVW = vUVW - wind;
 
   Vt = vAeroUVW.Magnitude();
-  if ( Vt > 0.05) {
+  double Vt2 = Vt*Vt;
+  alpha = beta = adot = bdot = 0;
+  double mUW = (vAeroUVW(eU)*vAeroUVW(eU) + vAeroUVW(eW)*vAeroUVW(eW));
+
+  if ( Vt > 1.0 ) {
     if (vAeroUVW(eW) != 0.0)
       alpha = vAeroUVW(eU)*vAeroUVW(eU) > 0.0 ? atan2(vAeroUVW(eW), vAeroUVW(eU)) : 0.0;
     if (vAeroUVW(eV) != 0.0)
-      beta = vAeroUVW(eU)*vAeroUVW(eU)+vAeroUVW(eW)*vAeroUVW(eW) > 0.0 ? atan2(vAeroUVW(eV),
-             sqrt(vAeroUVW(eU)*vAeroUVW(eU) + vAeroUVW(eW)*vAeroUVW(eW))) : 0.0;
+      beta = mUW > 0.0 ? atan2(vAeroUVW(eV), sqrt(mUW)) : 0.0;
 
-    double mUW = (vAeroUVW(eU)*vAeroUVW(eU) + vAeroUVW(eW)*vAeroUVW(eW));
     double signU=1;
-    if (vAeroUVW(eU) != 0.0)
-      signU = vAeroUVW(eU)/fabs(vAeroUVW(eU));
+    if (vAeroUVW(eU) < 0.0) signU=-1;
 
-    if ( (mUW == 0.0) || (Vt == 0.0) ) {
-      adot = 0.0;
-      bdot = 0.0;
-    } else {
+    if ( mUW >= 1.0 ) {
       adot = (vAeroUVW(eU)*vUVWdot(eW) - vAeroUVW(eW)*vUVWdot(eU))/mUW;
-      bdot = (signU*mUW*vUVWdot(eV) - vAeroUVW(eV)*(vAeroUVW(eU)*vUVWdot(eU)
-              + vAeroUVW(eW)*vUVWdot(eW)))/(Vt*Vt*sqrt(mUW));
+      bdot = (signU*mUW*vUVWdot(eV)
+             - vAeroUVW(eV)*(vAeroUVW(eU)*vUVWdot(eU) + vAeroUVW(eW)*vUVWdot(eW)))/(Vt2*sqrt(mUW));
     }
-  } else {
-    alpha = beta = adot = bdot = 0;
   }
 
-  Re = Vt * Aircraft->Getcbar() / Atmosphere->GetKinematicViscosity();
+  Re = Vt * FDMExec->GetAircraft()->Getcbar() / FDMExec->GetAtmosphere()->GetKinematicViscosity();
 
-  qbar = 0.5*Atmosphere->GetDensity()*Vt*Vt;
-  qbarUW = 0.5*Atmosphere->GetDensity()*(vAeroUVW(eU)*vAeroUVW(eU) + vAeroUVW(eW)*vAeroUVW(eW));
-  qbarUV = 0.5*Atmosphere->GetDensity()*(vAeroUVW(eU)*vAeroUVW(eU) + vAeroUVW(eV)*vAeroUVW(eV));
-  Mach = Vt / Atmosphere->GetSoundSpeed();
-  MachU = vMachUVW(eU) = vAeroUVW(eU) / Atmosphere->GetSoundSpeed();
-  vMachUVW(eV) = vAeroUVW(eV) / Atmosphere->GetSoundSpeed();
-  vMachUVW(eW) = vAeroUVW(eW) / Atmosphere->GetSoundSpeed();
+  qbar = 0.5*density*Vt2;
+  qbarUW = 0.5*density*(mUW);
+  qbarUV = 0.5*density*(vAeroUVW(eU)*vAeroUVW(eU) + vAeroUVW(eV)*vAeroUVW(eV));
+  Mach = Vt / soundspeed;
+  MachU = vMachUVW(eU) = vAeroUVW(eU) / soundspeed;
+  vMachUVW(eV) = vAeroUVW(eV) / soundspeed;
+  vMachUVW(eW) = vAeroUVW(eW) / soundspeed;
 
 // Position
 
@@ -235,20 +254,15 @@ bool FGAuxiliary::Run()
     vcas = veas = 0.0;
   }
 
+  const double SLgravity = FDMExec->GetInertial()->SLgravity();
+
   vPilotAccel.InitMatrix();
   if ( Vt > 1.0 ) {
-     // Use the "+=" operator to avoid the creation of temporary objects.
-     vAircraftAccel = Aerodynamics->GetForces();
-     vAircraftAccel += Propulsion->GetForces();
-     vAircraftAccel += GroundReactions->GetForces();
-     vAircraftAccel += ExternalReactions->GetForces();
-     vAircraftAccel += BuoyantForces->GetForces();
-
-     vAircraftAccel /= MassBalance->GetMass();
+     vAircraftAccel = FDMExec->GetAircraft()->GetBodyAccel();
      // Nz is Acceleration in "g's", along normal axis (-Z body axis)
-     Nz = -vAircraftAccel(eZ)/Inertial->SLgravity();
-     vToEyePt = MassBalance->StructuralToBody(Aircraft->GetXYZep());
-     vPilotAccel = vAircraftAccel + Propagate->GetPQRdot() * vToEyePt;
+     Nz = -vAircraftAccel(eZ)/SLgravity;
+     vToEyePt = FDMExec->GetMassBalance()->StructuralToBody(FDMExec->GetAircraft()->GetXYZep());
+     vPilotAccel = vAircraftAccel + FDMExec->GetPropagate()->GetPQRdot() * vToEyePt;
      vPilotAccel += vPQR * (vPQR * vToEyePt);
   } else {
      // The line below handles low velocity (and on-ground) cases, basically
@@ -257,24 +271,24 @@ bool FGAuxiliary::Run()
      // any jitter that could be introduced by the landing gear. Theoretically,
      // this branch could be eliminated, with a penalty of having a short
      // transient at startup (lasting only a fraction of a second).
-     vPilotAccel = Propagate->GetTl2b() * FGColumnVector3( 0.0, 0.0, -Inertial->SLgravity() );
-     Nz = -vPilotAccel(eZ)/Inertial->SLgravity();
+     vPilotAccel = Tl2b * FGColumnVector3( 0.0, 0.0, -SLgravity );
+     Nz = -vPilotAccel(eZ)/SLgravity;
   }
 
-  vPilotAccelN = vPilotAccel/Inertial->SLgravity();
+  vPilotAccelN = vPilotAccel/SLgravity;
 
   // VRP computation
-  const FGLocation& vLocation = Propagate->GetLocation();
-  FGColumnVector3& vrpStructural = Aircraft->GetXYZvrp();
-  FGColumnVector3 vrpBody = MassBalance->StructuralToBody( vrpStructural );
-  FGColumnVector3 vrpLocal = Propagate->GetTb2l() * vrpBody;
+  const FGLocation& vLocation = FDMExec->GetPropagate()->GetLocation();
+  const FGColumnVector3& vrpStructural = FDMExec->GetAircraft()->GetXYZvrp();
+  const FGColumnVector3 vrpBody = FDMExec->GetMassBalance()->StructuralToBody( vrpStructural );
+  const FGColumnVector3 vrpLocal = Tb2l * vrpBody;
   vLocationVRP = vLocation.LocalToLocation( vrpLocal );
 
   // Recompute some derived values now that we know the dependent parameters values ...
-  hoverbcg = Propagate->GetDistanceAGL() / Aircraft->GetWingSpan();
+  hoverbcg = DistanceAGL / wingspan;
 
-  FGColumnVector3 vMac = Propagate->GetTb2l()*MassBalance->StructuralToBody(Aircraft->GetXYZrp());
-  hoverbmac = (Propagate->GetDistanceAGL() + vMac(3)) / Aircraft->GetWingSpan();
+  FGColumnVector3 vMac = Tb2l*FDMExec->GetMassBalance()->StructuralToBody(FDMExec->GetAircraft()->GetXYZrp());
+  hoverbmac = (DistanceAGL + vMac(3)) / wingspan;
 
   // when all model are executed, 
   // please calculate the distance from the initial point
@@ -290,15 +304,16 @@ bool FGAuxiliary::Run()
 //
 // A positive headwind is blowing with you, a negative headwind is blowing against you.
 // psi is the direction the wind is blowing *towards*.
+// ToDo: should this simply be in the atmosphere class? Same with Get Crosswind.
 
 double FGAuxiliary::GetHeadWind(void) const
 {
   double psiw,vw;
 
-  psiw = Atmosphere->GetWindPsi();
-  vw = Atmosphere->GetTotalWindNED().Magnitude();
+  psiw = FDMExec->GetAtmosphere()->GetWindPsi();
+  vw = FDMExec->GetAtmosphere()->GetTotalWindNED().Magnitude();
 
-  return vw*cos(psiw - Propagate->GetEuler(ePsi));
+  return vw*cos(psiw - FDMExec->GetPropagate()->GetEuler(ePsi));
 }
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -311,10 +326,17 @@ double FGAuxiliary::GetCrossWind(void) const
 {
   double psiw,vw;
 
-  psiw = Atmosphere->GetWindPsi();
-  vw = Atmosphere->GetTotalWindNED().Magnitude();
+  psiw = FDMExec->GetAtmosphere()->GetWindPsi();
+  vw = FDMExec->GetAtmosphere()->GetTotalWindNED().Magnitude();
 
-  return  vw*sin(psiw - Propagate->GetEuler(ePsi));
+  return  vw*sin(psiw - FDMExec->GetPropagate()->GetEuler(ePsi));
+}
+
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+double FGAuxiliary::GethVRP(void) const
+{
+  return vLocationVRP.GetRadius() - FDMExec->GetPropagate()->GetSeaLevelRadius();
 }
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -383,7 +405,7 @@ void FGAuxiliary::bind(void)
 
 void FGAuxiliary::CalculateRelativePosition(void)
 { 
-  const double earth_radius_mt = Inertial->GetRefRadius()*fttom;
+  const double earth_radius_mt = FDMExec->GetInertial()->GetRefRadius()*fttom;
   lat_relative_position=(FDMExec->GetPropagate()->GetLatitude()  - FDMExec->GetIC()->GetLatitudeDegIC() *degtorad)*earth_radius_mt;
   lon_relative_position=(FDMExec->GetPropagate()->GetLongitude() - FDMExec->GetIC()->GetLongitudeDegIC()*degtorad)*earth_radius_mt;
   relative_position = sqrt(lat_relative_position*lat_relative_position + lon_relative_position*lon_relative_position);

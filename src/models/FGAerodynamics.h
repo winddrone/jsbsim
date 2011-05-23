@@ -52,7 +52,7 @@ INCLUDES
 DEFINITIONS
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%*/
 
-#define ID_AERODYNAMICS "$Id: FGAerodynamics.h,v 1.20 2009/11/12 13:08:11 jberndt Exp $"
+#define ID_AERODYNAMICS "$Id: FGAerodynamics.h,v 1.23 2011/05/20 03:18:36 jberndt Exp $"
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 FORWARD DECLARATIONS
@@ -89,7 +89,7 @@ CLASS DOCUMENTATION
          {function contents}
        </function>
        <axis name="{LIFT | DRAG | SIDE | ROLL | PITCH | YAW}">
-         {force coefficient definitions}
+         {force or moment definitions}
        </axis>
        {additional axis definitions}
     </aerodynamics>
@@ -103,13 +103,13 @@ CLASS DOCUMENTATION
     <br>
     2) Axial-Normal coordinate system:
     @code
-       <axis name="{AXIAL | NORMAL}">
+       <axis name="{AXIAL | NORMAL | SIDE}">
     @endcode
     <br>
     Systems may NOT be combined, or a load error will occur.
 
     @author Jon S. Berndt, Tony Peden
-    @version $Revision: 1.20 $
+    @version $Revision: 1.23 $
 */
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -129,8 +129,13 @@ public:
   bool InitModel(void);
 
   /** Runs the Aerodynamics model; called by the Executive
+      Can pass in a value indicating if the executive is directing the simulation to Hold.
+      @param Holding if true, the executive has been directed to hold the sim from 
+                     advancing time. Some models may ignore this flag, such as the Input
+                     model, which may need to be active to listen on a socket for the
+                     "Resume" command to be given.
       @return false if no error */
-  bool Run(void);
+  bool Run(bool Holding);
 
   /** Loads the Aerodynamics model.
       The Load function for this class expects the XML parser to
@@ -141,7 +146,7 @@ public:
 
   /** Gets the total aerodynamic force vector.
       @return a force vector reference. */
-  FGColumnVector3& GetForces(void) {return vForces;}
+  const FGColumnVector3& GetForces(void) const {return vForces;}
 
   /** Gets the aerodynamic force for an axis.
       @param n Axis index. This could be 0, 1, or 2, or one of the
@@ -151,7 +156,7 @@ public:
 
   /** Gets the total aerodynamic moment vector.
       @return a moment vector reference. */
-  FGColumnVector3& GetMoments(void) {return vMoments;}
+  const FGColumnVector3& GetMoments(void) const {return vMoments;}
 
   /** Gets the aerodynamic moment for an axis.
       @return the moment about a single axis (as described also in the
@@ -160,7 +165,7 @@ public:
 
   /** Retrieves the aerodynamic forces in the wind axes.
       @return a reference to a column vector containing the wind axis forces. */
-  FGColumnVector3& GetvFw(void) { return vFw; }
+  const FGColumnVector3& GetvFw(void) const { return vFw; }
 
   /** Retrieves the aerodynamic forces in the wind axes, given an axis.
       @param axis the axis to return the force for (eX, eY, eZ).
@@ -169,33 +174,33 @@ public:
   double GetvFw(int axis) const { return vFw(axis); }
 
   /** Retrieves the lift over drag ratio */
-  inline double GetLoD(void) const { return lod; }
+  double GetLoD(void) const { return lod; }
 
   /** Retrieves the square of the lift coefficient. */
-  inline double GetClSquared(void) const { return clsq; }
-  inline double GetAlphaCLMax(void) const { return alphaclmax; }
-  inline double GetAlphaCLMin(void) const { return alphaclmin; }
+  double GetClSquared(void) const { return clsq; }
+  double GetAlphaCLMax(void) const { return alphaclmax; }
+  double GetAlphaCLMin(void) const { return alphaclmin; }
 
-  inline double GetHysteresisParm(void) const { return stall_hyst; }
-  inline double GetStallWarn(void) const { return impending_stall; }
+  double GetHysteresisParm(void) const { return stall_hyst; }
+  double GetStallWarn(void) const { return impending_stall; }
   double GetAlphaW(void) const { return alphaw; }
 
   double GetBI2Vel(void) const { return bi2vel; }
   double GetCI2Vel(void) const { return ci2vel; }
 
-  inline void SetAlphaCLMax(double tt) { alphaclmax=tt; }
-  inline void SetAlphaCLMin(double tt) { alphaclmin=tt; }
+  void SetAlphaCLMax(double tt) { alphaclmax=tt; }
+  void SetAlphaCLMin(double tt) { alphaclmin=tt; }
 
-  /** Gets the strings for the current set of coefficients.
+  /** Gets the strings for the current set of aero functions.
       @param delimeter either a tab or comma string depending on output type
-      @return a string containing the descriptive names for all coefficients */
-  std::string GetCoefficientStrings(const std::string& delimeter) const;
+      @return a string containing the descriptive names for all aero functions */
+  std::string GetAeroFunctionStrings(const std::string& delimeter) const;
 
-  /** Gets the coefficient values.
+  /** Gets the aero function values.
       @param delimeter either a tab or comma string depending on output type
       @return a string containing the numeric values for the current set of
-      coefficients */
-  std::string GetCoefficientValues(const std::string& delimeter) const;
+      aero functions */
+  std::string GetAeroFunctionValues(const std::string& delimeter) const;
 
   /** Calculates and returns the wind-to-body axis transformation matrix.
       @return a reference to the wind-to-body transformation matrix.
@@ -207,15 +212,15 @@ public:
       */
   FGMatrix33& GetTb2w(void);
 
-  std::vector <FGFunction*> * GetCoeff(void) const { return Coeff; }
+  std::vector <FGFunction*> * GetAeroFunctions(void) const { return AeroFunctions; }
 
 private:
   enum eAxisType {atNone, atLiftDrag, atAxialNormal, atBodyXYZ} axisType;
   typedef std::map<std::string,int> AxisIndex;
   AxisIndex AxisIdx;
   FGFunction* AeroRPShift;
-  typedef vector <FGFunction*> CoeffArray;
-  CoeffArray* Coeff;
+  typedef vector <FGFunction*> AeroFunctionArray;
+  AeroFunctionArray* AeroFunctions;
   FGColumnVector3 vFnative;
   FGColumnVector3 vFw;
   FGColumnVector3 vForces;

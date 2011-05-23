@@ -57,7 +57,7 @@ using namespace std;
 
 namespace JSBSim {
 
-static const char *IdSrc = "$Id: FGModel.cpp,v 1.15 2010/09/07 00:19:38 jberndt Exp $";
+static const char *IdSrc = "$Id: FGModel.cpp,v 1.18 2011/05/20 03:18:36 jberndt Exp $";
 static const char *IdHdr = ID_MODEL;
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -72,24 +72,12 @@ FGModel::FGModel(FGFDMExec* fdmex)
 {
   FDMExec     = fdmex;
 
-  Atmosphere      = 0;
-  FCS             = 0;
-  Propulsion      = 0;
-  MassBalance     = 0;
-  Aerodynamics    = 0;
-  Inertial        = 0;
-  GroundReactions = 0;
-  ExternalReactions = 0;
-  Aircraft        = 0;
-  Propagate       = 0;
-  Auxiliary       = 0;
-
   //in order for FGModel derived classes to self-bind (that is, call
   //their bind function in the constructor, the PropertyManager pointer
   //must be brought up now.
   PropertyManager = FDMExec->GetPropertyManager();
 
-  exe_ctr     = 1;
+  exe_ctr     = 0;
   rate        = 1;
 
   if (debug_lvl & 2) cout << "              FGModel Base Class" << endl;
@@ -106,42 +94,18 @@ FGModel::~FGModel()
 
 bool FGModel::InitModel(void)
 {
-  Atmosphere      = FDMExec->GetAtmosphere();
-  FCS             = FDMExec->GetFCS();
-  Propulsion      = FDMExec->GetPropulsion();
-  MassBalance     = FDMExec->GetMassBalance();
-  Aerodynamics    = FDMExec->GetAerodynamics();
-  Inertial        = FDMExec->GetInertial();
-  GroundReactions = FDMExec->GetGroundReactions();
-  ExternalReactions = FDMExec->GetExternalReactions();
-  BuoyantForces   = FDMExec->GetBuoyantForces();
-  Aircraft        = FDMExec->GetAircraft();
-  Propagate       = FDMExec->GetPropagate();
-  Auxiliary       = FDMExec->GetAuxiliary();
-
-  if (!Atmosphere ||
-      !FCS ||
-      !Propulsion ||
-      !MassBalance ||
-      !Aerodynamics ||
-      !Inertial ||
-      !GroundReactions ||
-      !ExternalReactions ||
-      !Aircraft ||
-      !Propagate ||
-      !Auxiliary) return(false);
-  else return(true);
+  return true;
 }
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-bool FGModel::Run()
+bool FGModel::Run(bool Holding)
 {
   if (debug_lvl & 4) cout << "Entering Run() for model " << Name << endl;
 
   if (rate == 1) return false; // Fast exit if nothing to do
 
-  if (exe_ctr >= rate) exe_ctr = 1;
+  if (exe_ctr >= rate) exe_ctr = 0;
 
   if (exe_ctr++ == 1) return false;
   else              return true;

@@ -54,7 +54,7 @@ using namespace std;
 
 namespace JSBSim {
 
-static const char *IdSrc = "$Id: FGScript.cpp,v 1.41 2010/07/08 11:36:28 jberndt Exp $";
+static const char *IdSrc = "$Id: FGScript.cpp,v 1.46 2011/02/18 12:44:16 jberndt Exp $";
 static const char *IdHdr = ID_FGSCRIPT;
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -78,12 +78,19 @@ FGScript::FGScript(FGFDMExec* fgex) : FDMExec(fgex)
 
 FGScript::~FGScript()
 {
-  unsigned int i;
+  unsigned int i, j;
 
-  for (i=0; i<local_properties.size(); i++) delete local_properties[i];
+  for (i=0; i<local_properties.size(); i++) {
+    delete local_properties[i]->value;
+    delete local_properties[i];
+  }
   local_properties.clear();
 
-  for (i=0; i<Events.size(); i++) delete Events[i].Condition;
+  for (i=0; i<Events.size(); i++) {
+    delete Events[i].Condition;
+    for (j=0; j<Events[i].Functions.size(); j++)
+      delete Events[i].Functions[j];
+  }
   Events.clear();
 
   Debug(1);
@@ -139,6 +146,8 @@ bool FGScript::LoadScript(string script, double deltaT)
   StartTime = run_element->GetAttributeValueAsNumber("start");
   FDMExec->Setsim_time(StartTime);
   EndTime   = run_element->GetAttributeValueAsNumber("end");
+  // Make sure that the desired time is reached and executed.
+  EndTime += 0.99*FDMExec->GetDeltaT();
 
   if (deltaT == 0.0)
     dt = run_element->GetAttributeValueAsNumber("dt");
@@ -240,11 +249,13 @@ bool FGScript::LoadScript(string script, double deltaT)
         newCondition = new FGCondition(condition_element, PropertyManager);
       } catch(string str) {
         cout << endl << fgred << str << reset << endl << endl;
+        delete newEvent;
         return false;
       }
       newEvent->Condition = newCondition;
     } else {
       cerr << "No condition specified in script event " << newEvent->Name << endl;
+      delete newEvent;
       return false;
     }
 
@@ -258,16 +269,30 @@ bool FGScript::LoadScript(string script, double deltaT)
     // Notify about when this event is triggered?
     if ((notify_element = event_element->FindElement("notify")) != 0) {
       newEvent->Notify = true;
+      // Check here for new <description> tag that gets echoed
+      string notify_description = notify_element->FindElementValue("description");
+      if (!notify_description.empty()) {
+        newEvent->Description = notify_description;
+      }
       notify_property_element = notify_element->FindElement("property");
       while (notify_property_element) {
         notifyPropertyName = notify_property_element->GetDataLine();
         if (PropertyManager->GetNode(notifyPropertyName)) {
           newEvent->NotifyProperties.push_back( PropertyManager->GetNode(notifyPropertyName) );
+          string caption_attribute = notify_property_element->GetAttributeValue("caption");
+          if (caption_attribute.empty()) {
+            newEvent->DisplayString.push_back(notifyPropertyName);
+          } else {
+            newEvent->DisplayString.push_back(caption_attribute);
+          }
         } else {
           cout << endl << fgred << "  Could not find the property named "
                << notifyPropertyName << " in script" << endl << "  \""
-               << ScriptName << "\". This unknown property will not be "
-               << "echoed for notification." << reset << endl;
+               << ScriptName << "\". Execution is aborted. Please recheck "
+               << "your input files and scripts." << reset << endl;
+          delete newEvent->Condition;
+          delete newEvent;
+          return false;
         }
         notify_property_element = notify_element->FindNextElement("property");
       }
@@ -338,7 +363,7 @@ bool FGScript::RunScript(void)
   double currentTime = FDMExec->GetSimTime();
   double newSetValue = 0;
 
-  if (currentTime > EndTime) return false; //Script done!
+  if (currentTime > EndTime) return false;
 
   // Iterate over all events.
   for (unsigned int ev_ctr=0; ev_ctr < Events.size(); ev_ctr++) {
@@ -376,7 +401,9 @@ bool FGScript::RunScript(void)
       Events[ev_ctr].Triggered = true;
 
     } else if (Events[ev_ctr].Persistent) { // If the event is persistent, reset the trigger.
-
+      Events[ev_ctr].Triggered = false; // Reset the trigger for persistent events
+      Events[ev_ctr].Notified = false;  // Also reset the notification flag
+    } else if (Events[ev_ctr].Continuous) { // If the event is continuous, reset the trigger.
       Events[ev_ctr].Triggered = false; // Reset the trigger for persistent events
       Events[ev_ctr].Notified = false;  // Also reset the notification flag
     }
@@ -423,8 +450,12 @@ bool FGScript::RunScript(void)
       if (Events[ev_ctr].Notify && !Events[ev_ctr].Notified) {
         cout << endl << "  Event " << event_ctr << " (" << Events[ev_ctr].Name << ")"
              << " executed at time: " << currentTime << endl;
+        if (!Events[ev_ctr].Description.empty()) {
+          cout << "    " << Events[ev_ctr].Description << endl;
+        }
         for (j=0; j<Events[ev_ctr].NotifyProperties.size();j++) {
-          cout << "    " << Events[ev_ctr].NotifyProperties[j]->GetRelativeName()
+//          cout << "    " << Events[ev_ctr].NotifyProperties[j]->GetRelativeName()
+          cout << "    " << Events[ev_ctr].DisplayString[j]
                << " = " << Events[ev_ctr].NotifyProperties[j]->getDoubleValue() << endl;
         }
         cout << endl;
@@ -486,9 +517,11 @@ void FGScript::Debug(int from)
         cout << ":" << endl;
 
         if (Events[i].Persistent)
-          cout << "  " << "Always executes";
+          cout << "  " << "Whenever triggered, executes once";
+        else if (Events[i].Continuous)
+          cout << "  " << "While true, always executes";
         else
-          cout << "  " << "Executes once";
+          cout << "  " << "When first triggered, executes once";
 
         Events[i].Condition->PrintCondition();
 

@@ -49,7 +49,7 @@ using namespace std;
 
 namespace JSBSim {
 
-static const char *IdSrc = "$Id: FGRocket.cpp,v 1.20 2010/08/21 17:13:48 jberndt Exp $";
+static const char *IdSrc = "$Id: FGRocket.cpp,v 1.23 2011/01/24 13:01:56 jberndt Exp $";
 static const char *IdHdr = ID_ROCKET;
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -124,6 +124,8 @@ FGRocket::~FGRocket(void)
 
 void FGRocket::Calculate(void)
 {
+  if (FDMExec->IntegrationSuspended()) return;
+
   double dT = FDMExec->GetDeltaT()*Propulsion->GetRate();
 
   RunPreFunctions();
@@ -200,7 +202,7 @@ void FGRocket::ConsumeFuel(void)
   double Fshortage=0, Oshortage=0, TanksWithFuel=0, TanksWithOxidizer=0;
 
   if (FuelFreeze) return;
-  if (TrimMode) return;
+  if (FDMExec->GetTrimStatus()) return;
 
   // Count how many assigned tanks have fuel for this engine at this time.
   // If there is/are fuel tanks but no oxidizer tanks, this indicates
@@ -213,9 +215,9 @@ void FGRocket::ConsumeFuel(void)
         if (Tank->GetContents() > 0.0 && Tank->GetSelected() && SourceTanks[i] > 0) ++TanksWithFuel;
         break;
       case FGTank::ttOXIDIZER:
-        if (Tank->GetContents() > 0.0 && Tank->GetSelected() && SourceTanks[i] > 0) {
+        if (Tank->GetSelected() && SourceTanks[i] > 0) {
           haveOxTanks = true;
-          ++TanksWithOxidizer;
+          if (Tank->GetContents() > 0.0) ++TanksWithOxidizer;
         }
         break;
     }

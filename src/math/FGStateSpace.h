@@ -488,7 +488,7 @@ public:
         {
             for (int i=0;i<m_fdm->GetPropulsion()->GetNumEngines();i++)
                 m_fdm->GetFCS()->SetThrottleCmd(i,val);
-            m_fdm->GetFCS()->Run();
+            m_fdm->GetFCS()->Run(false); // XXX what is holding?
         }
     };
 
@@ -518,7 +518,7 @@ public:
         void set(double val)
         {
             m_fdm->GetFCS()->SetDaCmd(val);
-            m_fdm->GetFCS()->Run();
+            m_fdm->GetFCS()->Run(false); // XXX what is holding?
         }
     };
 
@@ -548,7 +548,7 @@ public:
         void set(double val)
         {
             m_fdm->GetFCS()->SetDeCmd(val);
-            m_fdm->GetFCS()->Run();
+            m_fdm->GetFCS()->Run(false); // XXX what is holding?
         }
     };
 
@@ -577,7 +577,7 @@ public:
         void set(double val)
         {
             m_fdm->GetFCS()->SetDrCmd(val);
-            m_fdm->GetFCS()->Run();
+            m_fdm->GetFCS()->Run(false); // XXX what is holding?
         }
     };
 

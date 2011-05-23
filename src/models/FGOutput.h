@@ -45,12 +45,13 @@ INCLUDES
 
 #include "input_output/FGXMLFileRead.h"
 #include "input_output/net_fdm.hxx"
+#include "input_output/FGfdmSocket.h"
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 DEFINITIONS
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%*/
 
-#define ID_OUTPUT "$Id: FGOutput.h,v 1.17 2009/10/24 22:59:30 jberndt Exp $"
+#define ID_OUTPUT "$Id: FGOutput.h,v 1.23 2011/05/20 03:18:36 jberndt Exp $"
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 FORWARD DECLARATIONS
@@ -123,7 +124,7 @@ CLASS DOCUMENTATION
     propulsion       ON|OFF
 </pre>
     NOTE that Time is always output with the data.
-    @version $Id: FGOutput.h,v 1.17 2009/10/24 22:59:30 jberndt Exp $
+    @version $Id: FGOutput.h,v 1.23 2011/05/20 03:18:36 jberndt Exp $
  */
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -137,25 +138,35 @@ public:
   ~FGOutput();
 
   bool InitModel(void);
-  bool Run(void);
+  /** Runs the Output model; called by the Executive
+      Can pass in a value indicating if the executive is directing the simulation to Hold.
+      @param Holding if true, the executive has been directed to hold the sim from 
+                     advancing time. Some models may ignore this flag, such as the Input
+                     model, which may need to be active to listen on a socket for the
+                     "Resume" command to be given.
+      @return false if no error */
+  bool Run(bool Holding);
 
+  void Print(void);
   void DelimitedOutput(const std::string&);
   void SocketOutput(void);
   void FlightGearSocketOutput(void);
   void SocketStatusOutput(const std::string&);
   void SocketDataFill(FGNetFDM* net);
 
-
   void SetType(const std::string& type);
+  void SetProtocol(const std::string& protocol);
+  void SetPort(const std::string& port);
   void SetStartNewFile(bool tt) {StartNewFile = tt;}
   void SetSubsystems(int tt) {SubSystems = tt;}
+  void SetOutputFileName(const std::string& fname) {Filename = fname;}
+  void SetDirectivesFile(const std::string& fname) {DirectivesFile = fname;}
+  void SetRate(double rt);
   void Enable(void) { enabled = true; }
   void Disable(void) { enabled = false; }
   bool Toggle(void) {enabled = !enabled; return enabled;}
+
   bool Load(Element* el);
-  void SetOutputFileName(const std::string& fname) {Filename = fname;}
-  void SetDirectivesFile(const std::string& fname) {DirectivesFile = fname;}
-  void SetRate(int rt);
   string GetOutputFileName(void) const {return Filename;}
 
   /// Subsystem types for specifying which will be output in the FDM data logging
@@ -168,26 +179,26 @@ public:
     /** Subsystem: Moments (= 32)            */ ssMoments         = 32,
     /** Subsystem: Atmosphere (= 64)         */ ssAtmosphere      = 64,
     /** Subsystem: Mass Properties (= 128)   */ ssMassProps       = 128,
-    /** Subsystem: Coefficients (= 256)      */ ssCoefficients    = 256,
+    /** Subsystem: Coefficients (= 256)      */ ssAeroFunctions    = 256,
     /** Subsystem: Propagate (= 512)         */ ssPropagate       = 512,
     /** Subsystem: Ground Reactions (= 1024) */ ssGroundReactions = 1024,
     /** Subsystem: FCS (= 2048)              */ ssFCS             = 2048,
     /** Subsystem: Propulsion (= 4096)       */ ssPropulsion      = 4096
   } subsystems;
 
-
   FGNetFDM fgSockBuf;
 
 private:
   enum {otNone, otCSV, otTab, otSocket, otTerminal, otFlightGear, otUnknown} Type;
+  FGfdmSocket::ProtocolType Protocol;
   bool sFirstPass, dFirstPass, enabled;
   int SubSystems;
   int runID_postfix;
   bool StartNewFile;
   std::string output_file_name, delimeter, BaseFilename, Filename, DirectivesFile;
+  std::string Port;
   std::ofstream datafile;
   FGfdmSocket* socket;
-  FGfdmSocket* flightGearSocket;
   std::vector <FGPropertyManager*> OutputProperties;
 
   void Debug(int from);

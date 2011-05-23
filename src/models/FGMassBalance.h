@@ -49,7 +49,7 @@ INCLUDES
 DEFINITIONS
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%*/
 
-#define ID_MASSBALANCE "$Id: FGMassBalance.h,v 1.21 2010/08/12 04:07:11 jberndt Exp $"
+#define ID_MASSBALANCE "$Id: FGMassBalance.h,v 1.23 2011/05/20 03:18:36 jberndt Exp $"
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 FORWARD DECLARATIONSS
@@ -116,7 +116,14 @@ public:
 
   bool Load(Element* el);
   bool InitModel(void);
-  bool Run(void);
+  /** Runs the Mass Balance model; called by the Executive
+      Can pass in a value indicating if the executive is directing the simulation to Hold.
+      @param Holding if true, the executive has been directed to hold the sim from 
+                     advancing time. Some models may ignore this flag, such as the Input
+                     model, which may need to be active to listen on a socket for the
+                     "Resume" command to be given.
+      @return false if no error */
+  bool Run(bool Holding);
 
   double GetMass(void) const {return Mass;}
   double GetWeight(void) const {return Weight;}
@@ -160,15 +167,15 @@ public:
    */
   FGColumnVector3 StructuralToBody(const FGColumnVector3& r) const;
 
-  inline void SetEmptyWeight(double EW) { EmptyWeight = EW;}
-  inline void SetBaseCG(const FGColumnVector3& CG) {vbaseXYZcg = vXYZcg = CG;}
+  void SetEmptyWeight(double EW) { EmptyWeight = EW;}
+  void SetBaseCG(const FGColumnVector3& CG) {vbaseXYZcg = vXYZcg = CG;}
 
   void AddPointMass(Element* el);
   double GetTotalPointMassWeight(void);
 
   FGColumnVector3& GetPointMassMoment(void);
-  FGMatrix33& GetJ(void) {return mJ;}
-  FGMatrix33& GetJinv(void) {return mJinv;}
+  const FGMatrix33& GetJ(void) const {return mJ;}
+  const FGMatrix33& GetJinv(void) const {return mJinv;}
   void SetAircraftBaseInertias(FGMatrix33 BaseJ) {baseJ = BaseJ;}
   void GetMassPropertiesReport(void) const;
   

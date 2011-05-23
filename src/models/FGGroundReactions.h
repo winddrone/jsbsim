@@ -45,7 +45,7 @@ INCLUDES
 #include "math/FGColumnVector3.h"
 #include "input_output/FGXMLElement.h"
 
-#define ID_GROUNDREACTIONS "$Id: FGGroundReactions.h,v 1.18 2010/09/07 00:40:03 jberndt Exp $"
+#define ID_GROUNDREACTIONS "$Id: FGGroundReactions.h,v 1.20 2011/05/20 03:18:36 jberndt Exp $"
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 FORWARD DECLARATIONS
@@ -98,14 +98,21 @@ public:
   ~FGGroundReactions(void);
 
   bool InitModel(void);
-  bool Run(void);
+  /** Runs the Ground Reactions model; called by the Executive
+      Can pass in a value indicating if the executive is directing the simulation to Hold.
+      @param Holding if true, the executive has been directed to hold the sim from 
+                     advancing time. Some models may ignore this flag, such as the Input
+                     model, which may need to be active to listen on a socket for the
+                     "Resume" command to be given.
+      @return false if no error */
+  bool Run(bool Holding);
   bool Load(Element* el);
-  FGColumnVector3& GetForces(void) {return vForces;}
+  const FGColumnVector3& GetForces(void) const {return vForces;}
   double GetForces(int idx) const {return vForces(idx);}
-  FGColumnVector3& GetMoments(void) {return vMoments;}
+  const FGColumnVector3& GetMoments(void) const {return vMoments;}
   double GetMoments(int idx) const {return vMoments(idx);}
-  string GetGroundReactionStrings(string delimeter);
-  string GetGroundReactionValues(string delimeter);
+  string GetGroundReactionStrings(string delimeter) const;
+  string GetGroundReactionValues(string delimeter) const;
   bool GetWOW(void) const;
   void UpdateForcesAndMoments(void);
 
@@ -114,7 +121,7 @@ public:
   /** Gets a gear instance
       @param gear index of gear instance
       @return a pointer to the FGLGear instance of the gear unit requested */
-  inline FGLGear* GetGearUnit(int gear) { return lGear[gear]; }
+  FGLGear* GetGearUnit(int gear) const { return lGear[gear]; }
 
 private:
   vector <FGLGear*> lGear;

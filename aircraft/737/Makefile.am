@@ -1,8 +1,3 @@
-aircraft_737dir = ${pkgdatadir}/aircraft/737
-aircraft_737_DATA = \
+EXTRA_DIST = \
 	737.xml \
-	INSTALL \
-	reset00.xml \
-	cruise_steady_turn_init.xml \
-	cruise_init.xml 
-EXTRA_DIST=$(aircraft_737_DATA)
+	reset00.xml

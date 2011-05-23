@@ -63,7 +63,7 @@ using namespace std;
 
 namespace JSBSim {
 
-static const char *IdSrc = "$Id: FGFCS.cpp,v 1.70 2010/08/21 22:56:11 jberndt Exp $";
+static const char *IdSrc = "$Id: FGFCS.cpp,v 1.74 2011/05/20 03:18:36 jberndt Exp $";
 static const char *IdHdr = ID_FCS;
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -123,8 +123,6 @@ bool FGFCS::InitModel(void)
 {
   unsigned int i;
 
-  if (!FGModel::InitModel()) return false;
-
   for (i=0; i<ThrottlePos.size(); i++) ThrottlePos[i] = 0.0;
   for (i=0; i<MixturePos.size(); i++) MixturePos[i] = 0.0;
   for (i=0; i<ThrottleCmd.size(); i++) ThrottleCmd[i] = 0.0;
@@ -182,17 +180,6 @@ bool FGFCS::InitModel(void)
 
   return true;
 }
-  
-//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-void FGFCS::LateBind(void)
-{
-  int i;
-
-  for (i=0; i<Systems.size(); i++) Systems[i]->LateBind();
-  for (i=0; i<APComponents.size(); i++) APComponents[i]->LateBind();
-  for (i=0; i<FCSComponents.size(); i++) FCSComponents[i]->LateBind();
-}
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // Notes: In this logic the default engine commands are set. This is simply a
@@ -202,12 +189,12 @@ void FGFCS::LateBind(void)
 // actually present in the flight_control or autopilot section will override
 // these simple assignments.
 
-bool FGFCS::Run(void)
+bool FGFCS::Run(bool Holding)
 {
   unsigned int i;
 
-  if (FGModel::Run()) return true; // fast exit if nothing to do
-  if (FDMExec->Holding()) return false;
+  if (FGModel::Run(Holding)) return true; // fast exit if nothing to do
+  if (Holding) return false;
 
   RunPreFunctions();
 
@@ -218,7 +205,7 @@ bool FGFCS::Run(void)
 
   // Set the default steering angle
   for (i=0; i<SteerPosDeg.size(); i++) {
-    FGLGear* gear = GroundReactions->GetGearUnit(i);
+    FGLGear* gear = FDMExec->GetGroundReactions()->GetGearUnit(i);
     SteerPosDeg[i] = gear->GetDefaultSteerAngle( GetDsCmd() );
   }
 
@@ -760,7 +747,7 @@ ifstream* FGFCS::FindSystemFile(const string& sysfilename)
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-string FGFCS::GetComponentStrings(const string& delimiter)
+string FGFCS::GetComponentStrings(const string& delimiter) const
 {
   unsigned int comp;
   string CompStrings = "";
@@ -797,7 +784,7 @@ string FGFCS::GetComponentStrings(const string& delimiter)
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-string FGFCS::GetComponentValues(const string& delimiter)
+string FGFCS::GetComponentValues(const string& delimiter) const
 {
   std::ostringstream buf;
 
@@ -964,7 +951,7 @@ void FGFCS::bindModel(void)
   string tmp;
 
   for (i=0; i<SteerPosDeg.size(); i++) {
-    if (GroundReactions->GetGearUnit(i)->GetSteerable()) {
+    if (FDMExec->GetGroundReactions()->GetGearUnit(i)->GetSteerable()) {
       tmp = CreateIndexedPropertyName("fcs/steer-pos-deg", i);
       PropertyManager->Tie( tmp.c_str(), this, i, &FGFCS::GetSteerPosDeg, &FGFCS::SetSteerPosDeg);
     }

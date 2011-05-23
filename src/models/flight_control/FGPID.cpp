@@ -44,7 +44,7 @@ using namespace std;
 
 namespace JSBSim {
 
-static const char *IdSrc = "$Id: FGPID.cpp,v 1.17 2010/08/21 22:56:11 jberndt Exp $";
+static const char *IdSrc = "$Id: FGPID.cpp,v 1.19 2011/05/05 11:44:11 jberndt Exp $";
 static const char *IdHdr = ID_PID;
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -144,10 +144,14 @@ bool FGPID::Run(void )
 
   if (Trigger != 0) {
     double test = Trigger->getDoubleValue();
-    if (fabs(test) < 0.000001) I_out_delta = Ki * dt * Input;  // Normal
+    if (fabs(test) < 0.000001) {
+      // I_out_delta = Ki * dt * Input;                         // Normal rectangular integrator
+      I_out_delta = Ki * dt * (1.5*Input - 0.5*Input_prev);  // 2nd order Adams Bashforth integrator
+    }
     if (test < 0.0)            I_out_total = 0.0;  // Reset integrator to 0.0
   } else { // no anti-wind-up trigger defined
-    I_out_delta = Ki * dt * Input;
+    // I_out_delta = Ki * dt * Input;
+    I_out_delta = Ki * dt * (1.5*Input - 0.5*Input_prev);  // 2nd order Adams Bashforth integrator
   }
   
   I_out_total += I_out_delta;
@@ -189,9 +193,9 @@ void FGPID::Debug(int from)
   if (debug_lvl & 1) { // Standard console startup message output
     if (from == 0) { // Constructor
       if (InputSigns[0] < 0)
-        cout << "      INPUT: -" << InputNames[0] << endl;
+        cout << "      INPUT: -" << InputNodes[0]->GetName() << endl;
       else
-        cout << "      INPUT: " << InputNames[0] << endl;
+        cout << "      INPUT: " << InputNodes[0]->GetName() << endl;
 
       if (IsOutput) {
         for (unsigned int i=0; i<OutputNodes.size(); i++)
