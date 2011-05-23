@@ -1,20 +1,24 @@
 includedir = @includedir@/JSBSim
 
+EXTRA_DIST = \
+	JSBSim.hxx JSBSim.cxx
+
 SUBDIRS = initialization models input_output math simgear utilities
 
 LIBRARY_SOURCES = FGFDMExec.cpp FGJSBBase.cpp
 
 LIBRARY_INCLUDES = FGFDMExec.h FGJSBBase.h
 
-noinst_PROGRAMS = JSBSim
+noinst_PROGRAMS = JSBSim Trim FGComm
+
 
 if BUILD_LIBRARIES
 
-lib_LTLIBRARIES = libJSBSim.la
+lib_LTLIBRARIES = libjsbsim.la
 include_HEADERS = $(LIBRARY_INCLUDES)
 
-libJSBSim_la_SOURCES = $(LIBRARY_SOURCES)
-libJSBSim_la_LIBADD = \
+libjsbsim_la_SOURCES = $(LIBRARY_SOURCES)
+libjsbsim_la_LIBADD = \
 	initialization/libInit.la \
 	models/libModels.la \
 	models/flight_control/libFlightControl.la \
@@ -25,10 +29,16 @@ libJSBSim_la_LIBADD = \
 	simgear/props/libProperties.la \
 	simgear/xml/libExpat.la \
 	simgear/magvar/libcoremag.la
-libJSBSim_la_CXXFLAGS = $(AM_CXXFLAGS)
+libjsbsim_la_CXXFLAGS = $(AM_CXXFLAGS)
 
 JSBSim_SOURCES = JSBSim.cpp
-JSBSim_LDADD = libJSBSim.la -lm
+JSBSim_LDADD = libjsbsim.la -lm
+
+Trim_SOURCES = Trim.cpp
+Trim_LDADD = libjsbsim.la -lm
+
+FGComm_SOURCES = FGComm.cpp
+FGComm_LDADD = libjsbsim.la -lm
 
 else
 
@@ -36,6 +46,35 @@ noinst_HEADERS = $(LIBRARY_INCLUDES)
 
 JSBSim_SOURCES = JSBSim.cpp $(LIBRARY_SOURCES)
 JSBSim_LDADD = \
+	initialization/libInit.a \
+	models/libModels.a \
+	models/flight_control/libFlightControl.a \
+	models/atmosphere/libAtmosphere.a \
+	models/propulsion/libPropulsion.a \
+	input_output/libInputOutput.a \
+	math/libMath.a \
+	simgear/props/libProperties.a \
+	simgear/xml/libExpat.a \
+	simgear/magvar/libcoremag.a \
+	-lm
+
+Trim_SOURCES = Trim.cpp $(LIBRARY_SOURCES)
+Trim_LDADD = \
+	initialization/libInit.a \
+	models/libModels.a \
+	models/flight_control/libFlightControl.a \
+	models/atmosphere/libAtmosphere.a \
+	models/propulsion/libPropulsion.a \
+	input_output/libInputOutput.a \
+	math/libMath.a \
+	simgear/props/libProperties.a \
+	simgear/xml/libExpat.a \
+	simgear/magvar/libcoremag.a \
+	-lm
+Trim_CXXFLAGS=-Weffc++
+
+FGComm_SOURCES = FGComm.cpp $(LIBRARY_SOURCES)
+FGComm_LDADD = \
 	initialization/libInit.a \
 	models/libModels.a \
 	models/flight_control/libFlightControl.a \
