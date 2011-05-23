@@ -25,6 +25,7 @@ ltmain.sh
 missing
 src/JSBSim*
 src/.libs/
+src/*.sce
 ./dotest
 *.patch
 *.diff
