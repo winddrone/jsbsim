@@ -9,7 +9,7 @@ LIBRARY_SOURCES = FGFDMExec.cpp FGJSBBase.cpp
 
 LIBRARY_INCLUDES = FGFDMExec.h FGJSBBase.h
 
-noinst_PROGRAMS = JSBSim Trim FGComm
+noinst_PROGRAMS = JSBSim JSBSimTrim JSBSimFGComm
 
 
 if BUILD_LIBRARIES
@@ -34,10 +34,10 @@ libjsbsim_la_CXXFLAGS = $(AM_CXXFLAGS)
 JSBSim_SOURCES = JSBSim.cpp
 JSBSim_LDADD = libjsbsim.la -lm
 
-Trim_SOURCES = Trim.cpp
+Trim_SOURCES = JSBSimTrim.cpp
 Trim_LDADD = libjsbsim.la -lm
 
-FGComm_SOURCES = FGComm.cpp
+FGComm_SOURCES = JSBSimFGComm.cpp
 FGComm_LDADD = libjsbsim.la -lm
 
 else
@@ -58,8 +58,8 @@ JSBSim_LDADD = \
 	simgear/magvar/libcoremag.a \
 	-lm
 
-Trim_SOURCES = Trim.cpp $(LIBRARY_SOURCES)
-Trim_LDADD = \
+JSBSimTrim_SOURCES = Trim.cpp $(LIBRARY_SOURCES)
+JSBSimTrim_LDADD = \
 	initialization/libInit.a \
 	models/libModels.a \
 	models/flight_control/libFlightControl.a \
@@ -73,8 +73,8 @@ Trim_LDADD = \
 	-lm
 Trim_CXXFLAGS=-Weffc++
 
-FGComm_SOURCES = FGComm.cpp $(LIBRARY_SOURCES)
-FGComm_LDADD = \
+JSBSimFGComm_SOURCES = FGComm.cpp $(LIBRARY_SOURCES)
+JSBSimFGComm_LDADD = \
 	initialization/libInit.a \
 	models/libModels.a \
 	models/flight_control/libFlightControl.a \
