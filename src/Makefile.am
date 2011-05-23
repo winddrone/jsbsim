@@ -14,11 +14,11 @@ noinst_PROGRAMS = JSBSim JSBSimTrim JSBSimFGComm
 
 if BUILD_LIBRARIES
 
-lib_LTLIBRARIES = libjsbsim.la
+lib_LTLIBRARIES = libJSBSim.la
 include_HEADERS = $(LIBRARY_INCLUDES)
 
-libjsbsim_la_SOURCES = $(LIBRARY_SOURCES)
-libjsbsim_la_LIBADD = \
+libJSBSim_la_SOURCES = $(LIBRARY_SOURCES)
+libJSBSim_la_LIBADD = \
 	initialization/libInit.la \
 	models/libModels.la \
 	models/flight_control/libFlightControl.la \
@@ -29,16 +29,16 @@ libjsbsim_la_LIBADD = \
 	simgear/props/libProperties.la \
 	simgear/xml/libExpat.la \
 	simgear/magvar/libcoremag.la
-libjsbsim_la_CXXFLAGS = $(AM_CXXFLAGS)
+libJSBSim_la_CXXFLAGS = $(AM_CXXFLAGS)
 
 JSBSim_SOURCES = JSBSim.cpp
-JSBSim_LDADD = libjsbsim.la -lm
+JSBSim_LDADD = libJSBSim.la -lm
 
 Trim_SOURCES = JSBSimTrim.cpp
-Trim_LDADD = libjsbsim.la -lm
+Trim_LDADD = libJSBSim.la -lm
 
 FGComm_SOURCES = JSBSimFGComm.cpp
-FGComm_LDADD = libjsbsim.la -lm
+FGComm_LDADD = libJSBSim.la -lm
 
 else
 
