@@ -66,10 +66,10 @@ int main (int argc, char const* argv[])
     // defaults
     constraints.velocity = 500;
     std::string aircraft="f16";
-    double rtol = std::numeric_limits<float>::epsilon();
-    double abstol = 1e-5;//std::numeric_limits<double>::epsilon();
+    double rtol = 1e-4;
+    double abstol = 1e-2;//std::numeric_limits<double>::epsilon();
     double speed = 1.1; // > 1
-	double random = 0; // random scale factor added to all simplex calcs
+	double random = 0.0; // random scale factor added to all simplex calcs
     int iterMax = 2000;
     bool showConvergeStatus = true;
     bool pause = false;
@@ -175,12 +175,12 @@ int main (int argc, char const* argv[])
     upperBound[4] = 1; // rudder
     upperBound[5] = 5*M_PI/180; // beta
 
-    initialStepSize[0] = 0.02; //throttle
-    initialStepSize[1] = 0.01; // elevator
-    initialStepSize[2] = 0.01; // alpha
-    initialStepSize[3] = 0.01; // aileron
-    initialStepSize[4] = 0.01; // rudder
-    initialStepSize[5] = 0.01; // beta
+    initialStepSize[0] = 0.2; //throttle
+    initialStepSize[1] = 0.1; // elevator
+    initialStepSize[2] = 0.1; // alpha
+    initialStepSize[3] = 0.1; // aileron
+    initialStepSize[4] = 0.1; // rudder
+    initialStepSize[5] = 0.1; // beta
 
     initialGuess[0] = 0.5; // throttle
     initialGuess[1] = 0; // elevator
@@ -232,8 +232,6 @@ int main (int argc, char const* argv[])
 
     ss.x.add(new FGStateSpace::Vt);
     ss.x.add(new FGStateSpace::Alpha);
-    ss.x.add(new FGStateSpace::Theta);
-    ss.x.add(new FGStateSpace::Q);
     ss.x.add(new FGStateSpace::Theta);
     ss.x.add(new FGStateSpace::Q);
 
