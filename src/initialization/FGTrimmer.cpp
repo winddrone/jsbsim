@@ -137,6 +137,7 @@ std::vector<double> FGTrimmer::constrain(const std::vector<double> & v)
         //propulsion()->GetEngine(i)->SetTrimMode(true);
         fcs()->SetThrottleCmd(i,tmin+throttle*(tmax-tmin));
     }
+	fcs()->Run(true);
 
     // steady propulsion system
     propulsion()->GetSteadyState();
@@ -363,12 +364,12 @@ double FGTrimmer::eval(const std::vector<double> & v)
                100.0*(dalpha*dalpha + dbeta*dbeta) +
                10.0*(dp*dp + dq*dq + dr*dr);
 
-        if (std::abs(dvt0-dvt) < 10*std::numeric_limits<double>::epsilon())
+        if (std::abs(dvt0-dvt) < 100*std::numeric_limits<double>::epsilon())
         {
             //std::cout << "\tcost converged in " << iter << " cycles" << std::endl;
             break;
         }
-        else if (iter>100)
+        else if (iter>1000)
         {
 			std::cout << "\ncost failed to converge to steady value"
 					  << std::scientific
@@ -380,13 +381,12 @@ double FGTrimmer::eval(const std::vector<double> & v)
 			break;
         }
         else dvt0=dvt;
+
+		//std::cout << "\tdvt\t: " << dvt << "\tdalpha\t: " << dalpha
+				//<< "\tdbeta\t: " << dbeta << "\tdp\t: " << dp
+				//<< "\tdq\t: " << dq << "\tdr\t: " << dr << std::endl;
     }
-    //std::cout << "\tdvt\t: " << dvt;
-    //std::cout << "\tdalpha\t: " << dalpha;
-    //std::cout << "\tdbeta\t: " << dbeta;
-    //std::cout << "\tdp\t: " << dp;
-    //std::cout << "\tdq\t: " << dq;
-    //std::cout << "\tdr\t: " << dr << std::endl;
+
     return cost;
 }
 

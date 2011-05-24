@@ -66,8 +66,8 @@ int main (int argc, char const* argv[])
     // defaults
     constraints.velocity = 500;
     std::string aircraft="f16";
-    double rtol = 1e-4;
-    double abstol = 1e-2;//std::numeric_limits<double>::epsilon();
+    double rtol = 1e-5;
+    double abstol = 1e-4;//std::numeric_limits<double>::epsilon();
     double speed = 1.1; // > 1
 	double random = 0.0; // random scale factor added to all simplex calcs
     int iterMax = 2000;
