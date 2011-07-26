@@ -73,6 +73,10 @@ private:
     {
         return m_fdm.GetPropagate();
     }
+	FGAccelerations * accel()
+    {
+        return m_fdm.GetAccelerations();
+    }
     Constraints & m_constraints;
 };
 

@@ -248,9 +248,9 @@ public:
         double getDeriv() const
         {
 
-            return (m_fdm->GetPropagate()->GetUVW(1)*m_fdm->GetPropagate()->GetUVWdot(1) +
-                    m_fdm->GetPropagate()->GetUVW(2)*m_fdm->GetPropagate()->GetUVWdot(2) +
-                    m_fdm->GetPropagate()->GetUVW(3)*m_fdm->GetPropagate()->GetUVWdot(3))/
+            return (m_fdm->GetPropagate()->GetUVW(1)*m_fdm->GetAccelerations()->GetUVWdot(1) +
+                    m_fdm->GetPropagate()->GetUVW(2)*m_fdm->GetAccelerations()->GetUVWdot(2) +
+                    m_fdm->GetPropagate()->GetUVW(3)*m_fdm->GetAccelerations()->GetUVWdot(3))/
                    m_fdm->GetAuxiliary()->GetVt(); // from lewis, vtrue dot
         }
 
@@ -364,7 +364,7 @@ public:
         }
         double getDeriv() const
         {
-            return m_fdm->GetPropagate()->GetPQRdot(2);
+            return m_fdm->GetAccelerations()->GetPQRdot(2);
         }
     };
 
@@ -436,7 +436,7 @@ public:
         }
         double getDeriv() const
         {
-            return m_fdm->GetPropagate()->GetPQRdot(1);
+            return m_fdm->GetAccelerations()->GetPQRdot(1);
         }
     };
 
@@ -454,7 +454,7 @@ public:
         }
         double getDeriv() const
         {
-            return m_fdm->GetPropagate()->GetPQRdot(3);
+            return m_fdm->GetAccelerations()->GetPQRdot(3);
         }
     };
 
@@ -719,7 +719,7 @@ public:
         }
         double getDeriv() const
         {
-            return m_fdm->GetPropagate()->GetPQRdot(1);
+            return m_fdm->GetAccelerations()->GetPQRdot(1);
         }
     };
 
@@ -740,7 +740,7 @@ public:
         }
         double getDeriv() const
         {
-            return m_fdm->GetPropagate()->GetPQRdot(2);
+            return m_fdm->GetAccelerations()->GetPQRdot(2);
         }
     };
 
@@ -761,7 +761,7 @@ public:
         }
         double getDeriv() const
         {
-            return m_fdm->GetPropagate()->GetPQRdot(3);
+            return m_fdm->GetAccelerations()->GetPQRdot(3);
         }
     };
 
@@ -780,7 +780,7 @@ public:
         double getDeriv() const
         {
 			//get NED accel from body accel
-            return (m_fdm->GetPropagate()->GetTb2l()*m_fdm->GetPropagate()->GetUVWdot())(1);
+            return (m_fdm->GetPropagate()->GetTb2l()*m_fdm->GetAccelerations()->GetUVWdot())(1);
         }
     };
 
@@ -799,7 +799,7 @@ public:
         double getDeriv() const
         {
 			//get NED accel from body accel
-            return (m_fdm->GetPropagate()->GetTb2l()*m_fdm->GetPropagate()->GetUVWdot())(2);
+            return (m_fdm->GetPropagate()->GetTb2l()*m_fdm->GetAccelerations()->GetUVWdot())(2);
 		}
     };
 
@@ -818,7 +818,7 @@ public:
         double getDeriv() const
         {
 			//get NED accel from body accel
-            return (m_fdm->GetPropagate()->GetTb2l()*m_fdm->GetPropagate()->GetUVWdot())(3);
+            return (m_fdm->GetPropagate()->GetTb2l()*m_fdm->GetAccelerations()->GetUVWdot())(3);
         }
     };
 
@@ -840,9 +840,9 @@ public:
         double getDeriv() const
         {
 			double Vn = m_fdm->GetPropagate()->GetVel(1);
-			double Vndot = (m_fdm->GetPropagate()->GetTb2l()*m_fdm->GetPropagate()->GetUVWdot())(1);
+			double Vndot = (m_fdm->GetPropagate()->GetTb2l()*m_fdm->GetAccelerations()->GetUVWdot())(1);
 			double Ve = m_fdm->GetPropagate()->GetVel(2);
-			double Vedot = (m_fdm->GetPropagate()->GetTb2l()*m_fdm->GetPropagate()->GetUVWdot())(2); 
+			double Vedot = (m_fdm->GetPropagate()->GetTb2l()*m_fdm->GetAccelerations()->GetUVWdot())(2); 
 
 			//dCOG/dt = dCOG/dVe*dVe/dt + dCOG/dVn*dVn/dt
 			return Vn/(Vn*Vn+Ve*Ve)*Vedot - Ve/(Vn*Vn+Ve*Ve)*Vndot;

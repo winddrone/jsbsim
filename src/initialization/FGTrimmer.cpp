@@ -227,9 +227,9 @@ void FGTrimmer::printSolution(const std::vector<double> & v)
     double dthrottle = (fcs()->GetThrottlePos(0)-throttle)/dt;
     double dlat = (propagate()->GetLatitudeDeg()-lat)/dt;
     double dlon = (propagate()->GetLongitudeDeg()-lon)/dt;
-    double dvt = (propagate()->GetUVW(1)*propagate()->GetUVWdot(1) +
-                  propagate()->GetUVW(2)*propagate()->GetUVWdot(2) +
-                  propagate()->GetUVW(3)*propagate()->GetUVWdot(3))/
+    double dvt = (propagate()->GetUVW(1)*accel()->GetUVWdot(1) +
+                  propagate()->GetUVW(2)*accel()->GetUVWdot(2) +
+                  propagate()->GetUVW(3)*accel()->GetUVWdot(3))/
                  aux()->GetVt(); // from lewis, vtrue dot
 
     // state
@@ -267,7 +267,7 @@ void FGTrimmer::printSolution(const std::vector<double> & v)
               << "\n\td/dt vt\t\t\t:\t" << dvt
               << "\n\td/dt alpha, deg/s\t:\t" << aux()->Getadot()*180/M_PI
               << "\n\td/dt theta, deg/s\t:\t" << aux()->GetEulerRates(2)*180/M_PI
-              << "\n\td/dt q, rad/s^2\t\t:\t" << propagate()->GetPQRdot(2)
+              << "\n\td/dt q, rad/s^2\t\t:\t" << accel()->GetPQRdot(2)
               << "\n\td/dt thrust, lbf\t:\t" << dthrust
               << "\n\td/dt beta, deg/s\t:\t" << aux()->Getbdot()*180/M_PI
               << "\n\td/dt phi, deg/s\t\t:\t" << aux()->GetEulerRates(1)*180/M_PI
@@ -351,15 +351,15 @@ double FGTrimmer::eval(const std::vector<double> & v)
     {
 		constrain(v);
 		//printState();
-        dvt = (propagate()->GetUVW(1)*propagate()->GetUVWdot(1) +
-               propagate()->GetUVW(2)*propagate()->GetUVWdot(2) +
-               propagate()->GetUVW(3)*propagate()->GetUVWdot(3))/
+        dvt = (propagate()->GetUVW(1)*accel()->GetUVWdot(1) +
+               propagate()->GetUVW(2)*accel()->GetUVWdot(2) +
+               propagate()->GetUVW(3)*accel()->GetUVWdot(3))/
               aux()->GetVt(); // from lewis, vtrue dot
         double dalpha = aux()->Getadot();
         double dbeta = aux()->Getbdot();
-        double dp = propagate()->GetPQRdot(1);
-        double dq = propagate()->GetPQRdot(2);
-        double dr = propagate()->GetPQRdot(3);
+        double dp = accel()->GetPQRdot(1);
+        double dq = accel()->GetPQRdot(2);
+        double dr = accel()->GetPQRdot(3);
         cost = dvt*dvt +
                100.0*(dalpha*dalpha + dbeta*dbeta) +
                10.0*(dp*dp + dq*dq + dr*dr);

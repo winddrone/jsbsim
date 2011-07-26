@@ -61,9 +61,9 @@ JSBSim_LDADD = \
 JSBSimTrim_SOURCES = Trim.cpp $(LIBRARY_SOURCES)
 JSBSimTrim_LDADD = \
 	initialization/libInit.a \
+	models/atmosphere/libAtmosphere.a \
 	models/libModels.a \
 	models/flight_control/libFlightControl.a \
-	models/atmosphere/libAtmosphere.a \
 	models/propulsion/libPropulsion.a \
 	input_output/libInputOutput.a \
 	math/libMath.a \
@@ -76,9 +76,9 @@ Trim_CXXFLAGS=-Weffc++
 JSBSimFGComm_SOURCES = FGComm.cpp $(LIBRARY_SOURCES)
 JSBSimFGComm_LDADD = \
 	initialization/libInit.a \
+	models/atmosphere/libAtmosphere.a \
 	models/libModels.a \
 	models/flight_control/libFlightControl.a \
-	models/atmosphere/libAtmosphere.a \
 	models/propulsion/libPropulsion.a \
 	input_output/libInputOutput.a \
 	math/libMath.a \

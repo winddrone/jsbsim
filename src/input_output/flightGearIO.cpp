@@ -101,9 +101,9 @@ void JSBSim2FlightGearNetFDM(FGFDMExec & fdm, FGNetFDM & net, bool netByteOrder)
     net.v_wind_body_east = fdm.GetAuxiliary()->GetAeroUVW(2);
     net.v_wind_body_down = fdm.GetAuxiliary()->GetAeroUVW(3);
 
-    net.A_X_pilot = fdm.GetAircraft()->GetBodyAccel(1);
-    net.A_Y_pilot = fdm.GetAircraft()->GetBodyAccel(2);
-    net.A_Z_pilot = fdm.GetAircraft()->GetBodyAccel(3);
+    net.A_X_pilot = fdm.GetAccelerations()->GetBodyAccel(1);
+    net.A_Y_pilot = fdm.GetAccelerations()->GetBodyAccel(2);
+    net.A_Z_pilot = fdm.GetAccelerations()->GetBodyAccel(3);
 
     net.stall_warning = 0;
     net.slip_deg = fdm.GetAuxiliary()->Getbeta(ofDeg);
