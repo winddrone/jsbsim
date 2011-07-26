@@ -58,7 +58,7 @@ INCLUDES
 DEFINITIONS
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%*/
 
-#define ID_FDMEXEC "$Id: FGFDMExec.h,v 1.65 2011/06/21 04:41:54 jberndt Exp $"
+#define ID_FDMEXEC "$Id: FGFDMExec.h,v 1.69 2011/07/18 04:37:34 jberndt Exp $"
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 FORWARD DECLARATIONS
@@ -71,6 +71,7 @@ class FGTrim;
 class FGAerodynamics;
 class FGAircraft;
 class FGAtmosphere;
+class FGAccelerations;
 class FGWinds;
 class FGAuxiliary;
 class FGBuoyantForces;
@@ -182,7 +183,7 @@ CLASS DOCUMENTATION
                                 property actually maps toa function call of DoTrim().
 
     @author Jon S. Berndt
-    @version $Revision: 1.65 $
+    @version $Revision: 1.69 $
 */
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -224,6 +225,10 @@ public:
 
   /// Default destructor
   ~FGFDMExec();
+
+  enum eModels { ePropagate, eInput, eAtmosphere, eWinds, eAuxiliary, eSystems,
+                 ePropulsion, eAerodynamics, eGroundReactions, eExternalReactions,
+                 eBuoyantForces, eMassBalance, eAircraft, eInertial, eAccelerations };
 
   /** Unbind all tied JSBSim properties. */
   void Unbind(void) {instance->Unbind();}
@@ -311,6 +316,8 @@ public:
   //@{
   /// Returns the FGAtmosphere pointer.
   FGAtmosphere* GetAtmosphere(void)    {return Atmosphere;}
+  /// Returns the FGAccelerations pointer.
+  FGAccelerations* GetAccelerations(void)    {return Accelerations;}
   /// Returns the FGWinds pointer.
   FGWinds* GetWinds(void)    {return Winds;}
   /// Returns the FGFCS pointer.
@@ -482,6 +489,8 @@ public:
   void SetTrimMode(int mode){ ta_mode = mode; }
   int GetTrimMode(void) const { return ta_mode; }
 
+  string GetPropulsionTankReport();
+
   /// Returns the cumulative simulation time in seconds.
   double GetSimTime(void) const { return sim_time; }
 
@@ -556,6 +565,7 @@ private:
 
   FGGroundCallback*   GroundCallback;
   FGAtmosphere*       Atmosphere;
+  FGAccelerations*    Accelerations;
   FGWinds*            Winds;
   FGFCS*              FCS;
   FGPropulsion*       Propulsion;
@@ -589,6 +599,9 @@ private:
   bool ReadChild(Element*);
   bool ReadPrologue(Element*);
   void ResetToInitialConditions(int mode);
+  void LoadInputs(unsigned int idx);
+  void LoadPlanetConstants(void);
+  void LoadModelConstants(void);
   bool Allocate(void);
   bool DeAllocate(void);
   void Initialize(FGInitialCondition *FGIC);

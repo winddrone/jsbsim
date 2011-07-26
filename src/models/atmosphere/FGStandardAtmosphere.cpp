@@ -50,7 +50,7 @@ INCLUDES
 
 namespace JSBSim {
 
-static const char *IdSrc = "$Id: FGStandardAtmosphere.cpp,v 1.12 2011/06/21 12:38:22 jberndt Exp $";
+static const char *IdSrc = "$Id: FGStandardAtmosphere.cpp,v 1.16 2011/07/20 12:26:41 jberndt Exp $";
 static const char *IdHdr = ID_STANDARDATMOSPHERE;
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -98,6 +98,7 @@ FGStandardAtmosphere::FGStandardAtmosphere(FGFDMExec* fdmex) : FGAtmosphere(fdme
 
 FGStandardAtmosphere::~FGStandardAtmosphere()
 {
+  delete StdAtmosTemperatureTable;
   LapseRateVector.clear();
   Debug(1);
 }
@@ -137,6 +138,7 @@ double FGStandardAtmosphere::GetPressure(double altitude) const
   unsigned int b=0;
   double pressure = 0.0;
   double Lmb, Exp, Tmb, deltaH, factor;
+  double numRows = StdAtmosTemperatureTable->GetNumRows();
 
   // Iterate through the altitudes to find the current Base Altitude
   // in the table. That is, if the current altitude (the argument passed in)
@@ -144,9 +146,8 @@ double FGStandardAtmosphere::GetPressure(double altitude) const
   // passed-in altitude is 40000 ft, the base altitude is 36151.6 ft (and
   // the index "b" is 2 - the second entry in the table).
   double testAlt = (*StdAtmosTemperatureTable)(b+1,0);
-  while (altitude >= testAlt) {
+  while ((altitude >= testAlt) && (b <= numRows-2)) {
     b++;
-    if (b+1 > StdAtmosTemperatureTable->GetNumRows()) break;
     testAlt = (*StdAtmosTemperatureTable)(b+1,0);
   }
   if (b>0) b--;
@@ -277,11 +278,10 @@ double FGStandardAtmosphere::GetStdDensity(double altitude) const
 
 void FGStandardAtmosphere::SetTemperature(double t, double h, eTemperature unit)
 {
-  if (unit == eCelsius || unit == eKelvin)
-    t *= 1.80; // If temp delta "t" is given in metric, scale up to English
+  double targetSLtemp = ConvertToRankine(t, unit);
 
   TemperatureBias = 0.0;
-  TemperatureBias = t - GetTemperature(h);
+  TemperatureBias = targetSLtemp - GetTemperature(h);
   CalculatePressureBreakpoints();
 }
 
@@ -304,10 +304,7 @@ void FGStandardAtmosphere::SetTemperatureBias(double t, eTemperature unit)
 
 void FGStandardAtmosphere::SetTemperatureSL(double t, eTemperature unit)
 {
-  double targetSLtemp = ConvertToRankine(t, unit);
-
-  TemperatureBias = targetSLtemp - GetStdTemperatureSL();
-  CalculatePressureBreakpoints();
+  SetTemperature(t, 0.0, unit);
 }
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -344,7 +341,7 @@ void FGStandardAtmosphere::SetTemperatureGradedDelta(double deltemp, double h, e
   for (int i=0; i<280000; i+=1000) {
     Calculate(i);
     std::cout  << std::setw(12) << std::setprecision(2) << i
-       << "  " << std::setw(9)  << std::setprecision(2) << Temperature-459.67
+       << "  " << std::setw(9)  << std::setprecision(2) << Temperature - 459.67
        << "  " << std::setw(13) << std::setprecision(4) << Pressure
        << "  " << std::setw(18) << std::setprecision(8) << Density
        << std::endl;
@@ -422,6 +419,9 @@ void FGStandardAtmosphere::bind(void)
   PropertyManager->Tie("atmosphere/delta-T", this, eRankine,
                                     (PMFi)&FGStandardAtmosphere::GetTemperatureBias,
                                     (PMF)&FGStandardAtmosphere::SetTemperatureBias);
+  PropertyManager->Tie("atmosphere/SL-graded-delta-T", this, eRankine,
+                                    (PMFi)&FGStandardAtmosphere::GetTemperatureDeltaGradient,
+									(PMF)&FGStandardAtmosphere::SetSLTemperatureGradedDelta);
 }
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

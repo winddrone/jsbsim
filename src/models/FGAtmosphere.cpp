@@ -50,7 +50,7 @@ INCLUDES
 
 namespace JSBSim {
 
-static const char *IdSrc = "$Id: FGAtmosphere.cpp,v 1.46 2011/06/21 04:41:54 jberndt Exp $";
+static const char *IdSrc = "$Id: FGAtmosphere.cpp,v 1.48 2011/07/10 20:18:14 jberndt Exp $";
 static const char *IdHdr = ID_ATMOSPHERE;
 
 /*%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -103,9 +103,7 @@ bool FGAtmosphere::Run(bool Holding)
 
   RunPreFunctions();
 
-  double altitude = FDMExec->GetPropagate()->GetAltitudeASL();
-
-  Calculate(altitude);
+  Calculate(in.altitudeASL);
 
   RunPostFunctions();
 
@@ -121,6 +119,8 @@ void FGAtmosphere::Calculate(double altitude)
   Pressure    = GetPressure(altitude);
   Density     = Pressure/(Reng*Temperature);
   Soundspeed  = sqrt(SHRatio*Reng*(Temperature));
+  PressureAltitude = altitude;
+  DensityAltitude = altitude;
 
   Viscosity = Beta * pow(Temperature, 1.5) / (SutherlandConstant + Temperature);
   KinematicViscosity = Viscosity / Density;
@@ -220,6 +220,8 @@ void FGAtmosphere::bind(void)
   PropertyManager->Tie("atmosphere/sigma", this, &FGAtmosphere::GetDensityRatio);
   PropertyManager->Tie("atmosphere/delta", this, &FGAtmosphere::GetPressureRatio);
   PropertyManager->Tie("atmosphere/a-ratio", this, &FGAtmosphere::GetSoundSpeedRatio);
+  PropertyManager->Tie("atmosphere/density-altitude", this, &FGAtmosphere::GetDensityAltitude);
+  PropertyManager->Tie("atmosphere/pressure-altitude", this, &FGAtmosphere::GetPressureAltitude);
 }
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

@@ -44,6 +44,10 @@ HISTORY
 INCLUDES
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%*/
 
+#include <iostream>
+#include <sstream>
+#include <cstdlib>
+#include <iomanip>
 #include "FGPropulsion.h"
 #include "models/FGFCS.h"
 #include "models/FGMassBalance.h"
@@ -57,15 +61,12 @@ INCLUDES
 #include "input_output/FGPropertyManager.h"
 #include "input_output/FGXMLParse.h"
 #include "math/FGColumnVector3.h"
-#include <iostream>
-#include <sstream>
-#include <cstdlib>
 
 using namespace std;
 
 namespace JSBSim {
 
-static const char *IdSrc = "$Id: FGPropulsion.cpp,v 1.46 2011/05/20 03:18:36 jberndt Exp $";
+static const char *IdSrc = "$Id: FGPropulsion.cpp,v 1.48 2011/07/20 12:26:41 jberndt Exp $";
 static const char *IdHdr = ID_PROPULSION;
 
 extern short debug_lvl;
@@ -301,6 +302,11 @@ bool FGPropulsion::Load(Element* el)
     }
 
     engine_filename = FindEngineFullPathname(engine_filename);
+    if (engine_filename.empty()) {
+      // error message already printed by FindEngineFullPathname()
+      return false;
+    }
+
     document = LoadXMLDocument(engine_filename);
     document->SetParent(engine_element);
 
@@ -455,6 +461,34 @@ string FGPropulsion::GetPropulsionValues(const string& delimiter) const
   }
 
   return PropulsionValues;
+}
+
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+string FGPropulsion::GetPropulsionTankReport()
+{
+  string out="";
+  stringstream outstream;
+  for (unsigned int i=0; i<numTanks; i++)
+  {
+    FGTank* tank = Tanks[i];
+    string tankname="";
+    if (tank->GetType() == FGTank::ttFUEL && tank->GetGrainType() != FGTank::gtUNKNOWN) {
+      tankname = "Solid Fuel";
+    } else if (tank->GetType() == FGTank::ttFUEL) {
+      tankname = "Fuel";
+    } else if (tank->GetType() == FGTank::ttOXIDIZER) {
+      tankname = "Oxidizer";
+    } else {
+      tankname = "(Unknown tank type)";
+    }
+    outstream << highint << left << setw(4) << i << setw(30) << tankname << normint
+      << right << setw(10) << tank->GetContents() << setw(8) << tank->GetXYZ(eX)
+         << setw(8) << tank->GetXYZ(eY) << setw(8) << tank->GetXYZ(eZ)
+         << setw(12) << "*" << setw(12) << "*"
+         << setw(12) << "*" << endl;
+  }
+  return outstream.str();
 }
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

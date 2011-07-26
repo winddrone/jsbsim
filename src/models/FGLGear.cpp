@@ -62,7 +62,7 @@ DEFINITIONS
 GLOBAL DATA
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%*/
 
-static const char *IdSrc = "$Id: FGLGear.cpp,v 1.80 2011/01/24 13:01:56 jberndt Exp $";
+static const char *IdSrc = "$Id: FGLGear.cpp,v 1.83 2011/07/24 19:44:13 jberndt Exp $";
 static const char *IdHdr = ID_LGEAR;
 
 // Body To Structural (body frame is rotated 180 deg about Y and lengths are given in
@@ -100,6 +100,15 @@ FGLGear::FGLGear(Element* el, FGFDMExec* fdmex, int number) :
   } else {
     // Unknown contact point types will be treated as STRUCTURE.
     eContactType = ctSTRUCTURE;
+  }
+
+  // Default values for structural contact points 
+  if (eContactType == ctSTRUCTURE) {
+    kSpring = fdmex->GetMassBalance()->GetEmptyWeight();
+    bDamp = kSpring;
+    bDampRebound = kSpring * 10;
+    staticFCoeff = 1.0;
+    dynamicFCoeff = 1.0;
   }
 
   if (el->FindElement("spring_coeff"))
@@ -281,15 +290,13 @@ FGColumnVector3& FGLGear::GetBodyForces(void)
   if (isRetractable) ComputeRetractionState();
 
   if (GearDown) {
-    FGColumnVector3 angularVel;
-
     vWhlBodyVec = MassBalance->StructuralToBody(vXYZn); // Get wheel in body frame
     vLocalGear = Propagate->GetTb2l() * vWhlBodyVec; // Get local frame wheel location
 
     gearLoc = Propagate->GetLocation().LocalToLocation(vLocalGear);
     // Compute the height of the theoretical location of the wheel (if strut is
     // not compressed) with respect to the ground level
-    double height = fdmex->GetGroundCallback()->GetAGLevel(t, gearLoc, contact, normal, cvel, angularVel);
+    double height = fdmex->GetGroundCallback()->GetAGLevel(t, gearLoc, contact, normal);
     vGroundNormal = Propagate->GetTec2b() * normal;
 
     // The height returned above is the AGL and is expressed in the Z direction
@@ -309,6 +316,7 @@ FGColumnVector3& FGLGear::GetBodyForces(void)
     }
 
     if (compressLength > 0.00) {
+      FGColumnVector3 terrainVel =  fdmex->GetGroundCallback()->GetTerrainVelocity();
 
       WOW = true;
 
@@ -328,7 +336,7 @@ FGColumnVector3& FGLGear::GetBodyForces(void)
       FGColumnVector3 vWhlContactVec = vWhlBodyVec + vWhlDisplVec;
       vActingXYZn = vXYZn + Tb2s * vWhlDisplVec;
       FGColumnVector3 vBodyWhlVel = Propagate->GetPQR() * vWhlContactVec;
-      vBodyWhlVel += Propagate->GetUVW() - Propagate->GetTec2b() * cvel;
+      vBodyWhlVel += Propagate->GetUVW() - Propagate->GetTec2b() * terrainVel;
 
       vWhlVelVec = mTGear.Transposed() * vBodyWhlVel;
 
@@ -751,7 +759,7 @@ void FGLGear::ComputeJacobian(const FGColumnVector3& vWhlContactVec)
 // accessed through this routine without knowing the exact constraint which they
 // model.
 
-FGPropagate::LagrangeMultiplier* FGLGear::GetMultiplierEntry(int entry)
+FGAccelerations::LagrangeMultiplier* FGLGear::GetMultiplierEntry(int entry)
 {
   switch(entry) {
   case 0:
@@ -768,8 +776,9 @@ FGPropagate::LagrangeMultiplier* FGLGear::GetMultiplierEntry(int entry)
 }
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-// This routine is called after the Lagrange multiplier has been computed. The
-// friction forces of the landing gear are then updated accordingly.
+// This routine is called after the Lagrange multiplier has been computed in
+// the FGAccelerations class. The friction forces of the landing gear are then
+// updated accordingly.
 FGColumnVector3& FGLGear::UpdateForces(void)
 {
   if (StaticFriction) {
@@ -789,29 +798,40 @@ void FGLGear::bind(void)
 {
   string property_name;
   string base_property_name;
-  base_property_name = CreateIndexedPropertyName("gear/unit", GearNumber);
+
+  switch(eContactType) {
+  case ctBOGEY:
+    base_property_name = CreateIndexedPropertyName("gear/unit", GearNumber);
+    break;
+  case ctSTRUCTURE:
+    base_property_name = CreateIndexedPropertyName("contact/unit", GearNumber);
+    break;
+  default:
+    return;
+  }
+
+  property_name = base_property_name + "/WOW";
+  fdmex->GetPropertyManager()->Tie( property_name.c_str(), &WOW );
+  property_name = base_property_name + "/z-position";
+  fdmex->GetPropertyManager()->Tie( property_name.c_str(), (FGForce*)this,
+                          &FGForce::GetLocationZ, &FGForce::SetLocationZ);
+  property_name = base_property_name + "/compression-ft";
+  fdmex->GetPropertyManager()->Tie( property_name.c_str(), &compressLength );
+  property_name = base_property_name + "/static_friction_coeff";
+  fdmex->GetPropertyManager()->Tie( property_name.c_str(), &staticFCoeff );
+  property_name = base_property_name + "/dynamic_friction_coeff";
+  fdmex->GetPropertyManager()->Tie( property_name.c_str(), &dynamicFCoeff );
+
   if (eContactType == ctBOGEY) {
     property_name = base_property_name + "/slip-angle-deg";
     fdmex->GetPropertyManager()->Tie( property_name.c_str(), &WheelSlip );
-    property_name = base_property_name + "/WOW";
-    fdmex->GetPropertyManager()->Tie( property_name.c_str(), &WOW );
     property_name = base_property_name + "/wheel-speed-fps";
     fdmex->GetPropertyManager()->Tie( property_name.c_str(), (FGLGear*)this,
                           &FGLGear::GetWheelRollVel);
-    property_name = base_property_name + "/z-position";
-    fdmex->GetPropertyManager()->Tie( property_name.c_str(), (FGForce*)this,
-                          &FGForce::GetLocationZ, &FGForce::SetLocationZ);
-    property_name = base_property_name + "/compression-ft";
-    fdmex->GetPropertyManager()->Tie( property_name.c_str(), &compressLength );
     property_name = base_property_name + "/side_friction_coeff";
     fdmex->GetPropertyManager()->Tie( property_name.c_str(), &FCoeff );
-
-    property_name = base_property_name + "/static_friction_coeff";
-    fdmex->GetPropertyManager()->Tie( property_name.c_str(), &staticFCoeff );
     property_name = base_property_name + "/rolling_friction_coeff";
     fdmex->GetPropertyManager()->Tie( property_name.c_str(), &rollingFCoeff );
-    property_name = base_property_name + "/dynamic_friction_coeff";
-    fdmex->GetPropertyManager()->Tie( property_name.c_str(), &dynamicFCoeff );
 
     if (eSteerType == stCaster) {
       property_name = base_property_name + "/steering-angle-deg";
