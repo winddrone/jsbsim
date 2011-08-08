@@ -44,6 +44,10 @@ you have chosen your IC's wisely) even after setting it up with this class.
 INCLUDES
 *******************************************************************************/
 
+#include <iostream>
+#include <fstream>
+#include <cstdlib>
+
 #include "FGInitialCondition.h"
 #include "FGFDMExec.h"
 #include "math/FGQuaternion.h"
@@ -51,17 +55,15 @@ INCLUDES
 #include "models/FGAtmosphere.h"
 #include "models/FGPropagate.h"
 #include "models/FGPropulsion.h"
+#include "models/FGFCS.h"
 #include "input_output/FGPropertyManager.h"
 #include "input_output/string_utilities.h"
-#include <iostream>
-#include <fstream>
-#include <cstdlib>
 
 using namespace std;
 
 namespace JSBSim {
 
-static const char *IdSrc = "$Id: FGInitialCondition.cpp,v 1.66 2011/07/17 16:38:50 jberndt Exp $";
+static const char *IdSrc = "$Id: FGInitialCondition.cpp,v 1.69 2011/08/04 12:46:32 jberndt Exp $";
 static const char *IdHdr = ID_INITIALCONDITION;
 
 //******************************************************************************
@@ -134,7 +136,7 @@ void FGInitialCondition::InitializeIC(void)
   terrain_elevation = 0;
   sea_level_radius = fdmex->GetInertial()->GetRefRadius();
   position.SetPosition(0., 0., sea_level_radius);
-  position.SetEarthPositionAngle(fdmex->GetInertial()->GetEarthPositionAngle());
+  position.SetEarthPositionAngle(fdmex->GetPropagate()->GetEarthPositionAngle());
   vUVW_NED.InitMatrix();
   p=q=r=0;
   vt=0;
