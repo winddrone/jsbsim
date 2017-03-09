@@ -242,6 +242,8 @@ public:
   double GetLatitudeRelativePosition  (void) const { return lat_relative_position; }
   double GetDistanceRelativePosition  (void) const { return relative_position; }
 
+  double GetTehterForce (void) const {return tether_strength;}
+
   void SetAeroPQR(FGColumnVector3 tt) { vAeroPQR = tt; }
 
 private:
@@ -276,6 +278,8 @@ private:
   double lon_relative_position;
   double lat_relative_position;
   double relative_position;
+
+  double tether_strength;
 
   void CalculateRelativePosition(void);
 

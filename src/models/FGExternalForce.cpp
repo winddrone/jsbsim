@@ -69,6 +69,11 @@ FGExternalForce::FGExternalForce(FGFDMExec *FDMExec, Element *el, int index): FG
 {
   Element* location_element=0;
   Element* direction_element=0;
+
+  Element* xdirection_element=0;
+  Element* ydirection_element=0;
+  Element* zdirection_element=0;
+
   Element* function_element=0;
   string sFrame;
   string BasePropertyName;
@@ -133,6 +138,31 @@ FGExternalForce::FGExternalForce(FGFDMExec *FDMExec, Element *el, int index): FG
     vDirection.Normalize();
   }
 
+
+  // specify direction of tether force
+  xdirection_element = el->FindElement("xdirection");
+  if (!xdirection_element) {
+    cerr << "No direction element specified in force object. Default is (0,0,0)." << endl;
+  } else {
+    vDirection.eX = xdirection_element->FindElementValue();
+  }
+
+  ydirection_element = el->FindElement("ydirection");
+  if (!ydirection_element) {
+    cerr << "No direction element specified in force object. Default is (0,0,0)." << endl;
+  } else {
+	vDirection.eY = ydirection_element->FindElementValue();
+  }
+
+  zdirection_element = el->FindElement("zdirection");
+  if (!zdirection_element) {
+    cerr << "No direction element specified in force object. Default is (0,0,0)." << endl;
+  } else {
+    vDirection.eZ = zdirection_element->FindElementValue();
+  }
+
+
+
   Debug(0);
 }
 
@@ -162,6 +192,7 @@ FGExternalForce::~FGExternalForce()
 
 void FGExternalForce::SetMagnitude(double mag)
 {
+  vDirection.Normalize();
   magnitude = mag;
   vFn = vDirection*mag;
 }
