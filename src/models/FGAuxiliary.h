@@ -279,6 +279,8 @@ private:
   double lat_relative_position;
   double relative_position;
 
+  double alt_agl;
+  double distance;
   double tether_strength;
 
   void CalculateRelativePosition(void);

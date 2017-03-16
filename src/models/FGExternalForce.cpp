@@ -144,21 +144,21 @@ FGExternalForce::FGExternalForce(FGFDMExec *FDMExec, Element *el, int index): FG
   if (!xdirection_element) {
     cerr << "No direction element specified in force object. Default is (0,0,0)." << endl;
   } else {
-    vDirection.eX = xdirection_element->FindElementValue();
+    vDirection(eX) = xdirection_element->FindElementValueAsNumber();
   }
 
   ydirection_element = el->FindElement("ydirection");
   if (!ydirection_element) {
     cerr << "No direction element specified in force object. Default is (0,0,0)." << endl;
   } else {
-	vDirection.eY = ydirection_element->FindElementValue();
+	vDirection(eY) = ydirection_element->FindElementValueAsNumber();
   }
 
   zdirection_element = el->FindElement("zdirection");
   if (!zdirection_element) {
     cerr << "No direction element specified in force object. Default is (0,0,0)." << endl;
   } else {
-    vDirection.eZ = zdirection_element->FindElementValue();
+    vDirection(eZ) = zdirection_element->FindElementValueAsNumber()*(-1);
   }
 
 
