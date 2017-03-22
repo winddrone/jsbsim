@@ -130,13 +130,13 @@ FGExternalForce::FGExternalForce(FGFDMExec *FDMExec, Element *el, int index): FG
     SetLocation(location);
   }
 
-  direction_element = el->FindElement("direction");
+/*  direction_element = el->FindElement("direction");
   if (!direction_element) {
     cerr << "No direction element specified in force object. Default is (0,0,0)." << endl;
   } else {
     vDirection = direction_element->FindElementTripletConvertTo("IN");
     vDirection.Normalize();
-  }
+  }*/
 
 
   // specify direction of tether force
@@ -144,25 +144,29 @@ FGExternalForce::FGExternalForce(FGFDMExec *FDMExec, Element *el, int index): FG
   if (!xdirection_element) {
     cerr << "No direction element specified in force object. Default is (0,0,0)." << endl;
   } else {
-    vDirection(eX) = xdirection_element->FindElementValueAsNumber();
+    //PropertyManager->Tie( BasePropertyName + "/x",(FGExternalForce*)this, &FGExternalForce::GetX, &FGExternalForce::SetX);
+    xDirection_Function = new FGFunction(PropertyManager, xdirection_element);
+    //vDirection(eX) = xDirection_Function->GetValue();
   }
 
   ydirection_element = el->FindElement("ydirection");
   if (!ydirection_element) {
     cerr << "No direction element specified in force object. Default is (0,0,0)." << endl;
   } else {
-	vDirection(eY) = ydirection_element->FindElementValueAsNumber();
+    //PropertyManager->Tie( BasePropertyName + "/y",(FGExternalForce*)this, &FGExternalForce::GetY, &FGExternalForce::SetY);
+    yDirection_Function = new FGFunction(PropertyManager, ydirection_element);
+	//vDirection(eY) = yDirection_Function->GetValue();
   }
 
   zdirection_element = el->FindElement("zdirection");
   if (!zdirection_element) {
     cerr << "No direction element specified in force object. Default is (0,0,0)." << endl;
   } else {
-    vDirection(eZ) = zdirection_element->FindElementValueAsNumber()*(-1);
+    //PropertyManager->Tie( BasePropertyName + "/z",(FGExternalForce*)this, &FGExternalForce::GetZ, &FGExternalForce::SetZ);
+    zDirection_Function = new FGFunction(PropertyManager, zdirection_element);
+    //vDirection(eZ) = zDirection_Function->GetValue()*(-1);
+    cout << "z direction" << vDirection(eZ) << endl;
   }
-
-
-
   Debug(0);
 }
 
@@ -204,8 +208,16 @@ FGColumnVector3& FGExternalForce::GetBodyForces(void)
   if (Magnitude_Function) {
     double mag = Magnitude_Function->GetValue();
     SetMagnitude(mag);
+
   }
-  
+
+    double x = xDirection_Function->GetValue();
+    double y = yDirection_Function->GetValue();
+    double z = zDirection_Function->GetValue()*(-1);
+    SetX(x);
+    SetY(y);
+    SetZ(z);
+
   return FGForce::GetBodyForces();
 }
 

@@ -171,6 +171,9 @@ private:
   FGPropertyManager* PropertyManager;
   FGPropertyManager* Magnitude_Node;
   FGFunction* Magnitude_Function;
+  FGFunction* xDirection_Function;
+  FGFunction* yDirection_Function;
+  FGFunction* zDirection_Function;
   string BasePropertyName;
   FGColumnVector3 vDirection;
   double magnitude;

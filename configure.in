@@ -194,6 +194,7 @@ AC_OUTPUT(
 	aircraft/easystar/Datcom/Makefile 
 	aircraft/easystar/Models/Makefile 
 	aircraft/easystar/Makefile 
+	aircraft/winddrone/Makefile 
 	aircraft/ball/Makefile 
 	aircraft/LM/Makefile 
 	aircraft/A4/Makefile 

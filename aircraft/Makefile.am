@@ -51,7 +51,8 @@ SUBDIRS = \
 	dr1 \
 	SGS \
 	c182 \
-	f16 
+	f16 \
+	winddrone
 aircraftdir = ${pkgdatadir}/aircraft
 aircraft_DATA = \
 	aircraft_template.xml 
