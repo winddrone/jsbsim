@@ -392,8 +392,9 @@ void FGAuxiliary::CalculateRelativePosition(void)
 
   alt_agl = FDMExec->GetPropagate()->GetDistanceAGL()*0.3048; //feet to meter
   distance = sqrt(relative_position*relative_position + alt_agl*alt_agl);
+  tether_strength = 0; 
   if (distance > 300){
-      tether_strength = 0;
+      tether_strength = -2;
   }
   //cout << "horiz. distance: " << relative_position << endl;
   //cout << "altitude: " << alt_agl << endl;
